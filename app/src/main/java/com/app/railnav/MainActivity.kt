@@ -54,9 +54,7 @@ fun PathfindingScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val scope = rememberCoroutineScope()
     var showInstructions by remember { mutableStateOf(false) }
-    var showLayerSelector by remember { mutableStateOf(false) }
     var isDarkTheme by remember { mutableStateOf(false) }
-    var selectedMapLayer by remember { mutableStateOf(MapLayer.STREET) }
     var showPermissionDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -111,7 +109,6 @@ fun PathfindingScreen(
                 allEdges = mainViewModel.getAllEdges(),
                 allNodes = uiState.allNodeFeatures,
                 onMarkerTap = { nodeFeature -> mainViewModel.onMarkerTapped(nodeFeature) },
-                mapLayer = selectedMapLayer,
                 userGpsLocation = uiState.userGpsLocation,
                 startNode = uiState.startNode
             )
@@ -145,12 +142,6 @@ fun PathfindingScreen(
                     .padding(end = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Layer Selector Button
-                MapControlButton(
-                    icon = Icons.Default.Layers,
-                    onClick = { showLayerSelector = !showLayerSelector }
-                )
-
                 // Theme Toggle
                 MapControlButton(
                     icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
@@ -167,21 +158,6 @@ fun PathfindingScreen(
                             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                         }
                     }
-                )
-            }
-
-            // Layer Selector Dropdown
-            if (showLayerSelector) {
-                LayerSelectorMenu(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 16.dp, end = 80.dp),
-                    selectedLayer = selectedMapLayer,
-                    onLayerSelected = {
-                        selectedMapLayer = it
-                        showLayerSelector = false
-                    },
-                    onDismiss = { showLayerSelector = false }
                 )
             }
 
@@ -529,71 +505,6 @@ fun MapControlButton(
 }
 
 @Composable
-fun LayerSelectorMenu(
-    modifier: Modifier = Modifier,
-    selectedLayer: MapLayer,
-    onLayerSelected: (MapLayer) -> Unit,
-    onDismiss: () -> Unit
-) {
-    Card(
-        modifier = modifier.width(200.dp),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(8.dp)
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Text(
-                "Map Layers",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-            )
-            Divider()
-            MapLayer.values().forEach { layer ->
-                LayerMenuItem(
-                    layer = layer,
-                    isSelected = layer == selectedLayer,
-                    onClick = { onLayerSelected(layer) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun LayerMenuItem(
-    layer: MapLayer,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .background(
-                if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                else Color.Transparent
-            )
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            layer.icon,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp),
-            tint = if (isSelected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            layer.displayName,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (isSelected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
-
-@Composable
 fun InstructionsSheet(
     instructions: List<String>,
     startNode: NodeFeature?,
@@ -693,12 +604,4 @@ fun InstructionItem(
             modifier = Modifier.weight(1f)
         )
     }
-}
-
-enum class MapLayer(val displayName: String, val icon: ImageVector) {
-    STREET("Street Map", Icons.Default.Map),
-    SATELLITE("Satellite", Icons.Default.Satellite),
-    TERRAIN("Terrain", Icons.Default.Terrain),
-    CYCLE("Cycle Map", Icons.Default.DirectionsBike),
-    TRANSIT("Public Transit", Icons.Default.Train)
 }

@@ -8,17 +8,18 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
 import androidx.lifecycle.LifecycleEventObserver
 import com.app.railnav.data.*
+import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import android.graphics.DashPathEffect
-import kotlin.math.pow
-import kotlin.math.sqrt
 
 @Composable
 fun MapView(
@@ -30,7 +31,6 @@ fun MapView(
     allEdges: List<EdgeFeature>,
     allNodes: List<NodeFeature>,
     onMarkerTap: (NodeFeature) -> Unit,
-    mapLayer: MapLayer = MapLayer.STREET,
     userGpsLocation: GeoPoint?,
     startNode: NodeFeature?
 ) {
@@ -44,12 +44,6 @@ fun MapView(
             kotlinx.coroutines.delay(500)
             onZoomComplete()
         }
-    }
-
-    // Handle map layer changes
-    LaunchedEffect(mapLayer) {
-        mapView.setTileSource(getMapTileSource(mapLayer))
-        mapView.invalidate()
     }
 
     AndroidView(
@@ -300,16 +294,29 @@ fun rememberMapViewWithLifecycle(onMapTap: (GeoPoint) -> Unit): MapView {
     val mapView = remember {
         MapView(context).apply {
             id = ViewCompat.generateViewId()
-            setTileSource(TileSourceFactory.MAPNIK)
-            setMultiTouchControls(true)
 
+            // Configure OSMDroid
+            Configuration.getInstance().apply {
+                userAgentValue = context.packageName
+                tileFileSystemCacheMaxBytes = 50L * 1024 * 1024 // 50MB cache
+                tileFileSystemCacheTrimBytes = 40L * 1024 * 1024 // Trim to 40MB
+            }
+
+            // Set tile source - use standard OSM Mapnik
+            setTileSource(TileSourceFactory.MAPNIK)
+
+            setMultiTouchControls(true)
             isTilesScaledToDpi = true
             setBuiltInZoomControls(false)
             minZoomLevel = 15.0
             maxZoomLevel = 20.0
 
+            // Set initial position
             controller.setZoom(19.0)
             controller.setCenter(GeoPoint(19.18612894230161, 72.97589331357065))
+
+            // Enable hardware acceleration for better performance
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
 
             val eventReceiver = object : MapEventsReceiver {
                 override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
@@ -346,13 +353,3 @@ fun rememberMapLifecycleObserver(mapView: MapView): LifecycleEventObserver =
             }
         }
     }
-
-private fun getMapTileSource(layer: MapLayer): org.osmdroid.tileprovider.tilesource.ITileSource {
-    return when (layer) {
-        MapLayer.STREET -> TileSourceFactory.MAPNIK
-        MapLayer.SATELLITE -> TileSourceFactory.USGS_SAT
-        MapLayer.TERRAIN -> TileSourceFactory.OPEN_SEAMAP
-        MapLayer.CYCLE -> TileSourceFactory.HIKEBIKEMAP
-        MapLayer.TRANSIT -> TileSourceFactory.PUBLIC_TRANSPORT
-    }
-}
