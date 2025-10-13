@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -269,6 +270,7 @@ fun SearchCard(
                 singleLine = true
             )
 
+
             ModernNodeSelector(
                 label = "Destination",
                 icon = Icons.Default.Flag,
@@ -324,34 +326,66 @@ fun SearchResultsList(
 }
 
 @Composable
-fun SearchResultItem(node: NodeFeature, userLocation: GeoPoint?, onClick: () -> Unit) {
+fun SearchResultItem(
+    node: NodeFeature,
+    userLocation: GeoPoint?,
+    onClick: () -> Unit
+) {
     val distance = userLocation?.let {
         val nodePoint = GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
         it.distanceToAsDouble(nodePoint).toInt()
     }
 
+    val name = node.properties.node_name ?: "Unknown"
+    val type = node.properties.node_type
+    val note = node.properties.note
+
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(8.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text(node.properties.node_name ?: "Unknown", fontWeight = FontWeight.SemiBold)
-                node.properties.node_type?.let {
-                    Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // 1️⃣ Node name
+                Text(name, fontWeight = FontWeight.SemiBold)
+
+                // 2️⃣ Node type (if available)
+                if (!type.isNullOrBlank()) {
+                    Text(type, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                // 3️⃣ Note (optional)
+                if (!note.isNullOrBlank()) {
+                    Text(
+                        note,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontStyle = FontStyle.Italic
+
+                    )
                 }
             }
+
+            // 4️⃣ Distance (if available)
             distance?.let {
-                Text("~${it}m", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text(
+                    "~${it}m",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
 }
+
 
 // =======================================
 // Map Controls and Dialogs
