@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 
-// --- UI STATE IS UPDATED FOR SEARCH ---
+// --- UPDATED UI STATE ---
 data class MainUiState(
     val allNodeFeatures: List<NodeFeature> = emptyList(),
     val startNode: NodeFeature? = null,
@@ -20,12 +20,13 @@ data class MainUiState(
     val instructions: List<String> = emptyList(),
     val pathBoundingBox: BoundingBox? = null,
     val isLoading: Boolean = true,
-    // New properties for search functionality
+
+    // --- SEARCH RELATED ---
     val searchQuery: String = "",
     val searchResults: List<NodeFeature> = emptyList(),
-    val userGpsLocation: GeoPoint? = null, // To store the user's actual location
-    val nearestNodeCandidates: List<NodeFeature> = emptyList(), // To show choices
-    val showNodeSelectionDialog: Boolean = false // To control the dialog
+    val userGpsLocation: GeoPoint? = null,
+    val nearestNodeCandidates: List<NodeFeature> = emptyList(),
+    val showNodeSelectionDialog: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,29 +54,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- NEW: SEARCH LOGIC ---
+    // ================================
+    // ENHANCED SEARCH LOGIC
+    // ================================
     fun onSearchQueryChanged(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
-        if (query.length > 1) { // Start searching after 2 characters
-            val results = _uiState.value.allNodeFeatures.filter {
-                it.properties.node_name?.contains(query, ignoreCase = true) == true
-            }
-            _uiState.value = _uiState.value.copy(searchResults = results)
-        } else {
+
+        if (query.isBlank()) {
             _uiState.value = _uiState.value.copy(searchResults = emptyList())
+            return
         }
+
+        val userLocation = _uiState.value.userGpsLocation
+        val allNodes = _uiState.value.allNodeFeatures
+
+        val queryLower = query.lowercase()
+
+        // Filter by name or type
+        val matchedNodes = allNodes.filter { node ->
+            val nodeName = node.properties.node_name?.lowercase() ?: ""
+            val nodeType = node.properties.node_type?.lowercase() ?: ""
+            nodeName.contains(queryLower) || nodeType.contains(queryLower)
+        }
+
+        // Sort by distance if possible
+        val sortedResults = if (userLocation != null) {
+            matchedNodes.sortedBy { node ->
+                val nodePoint = GeoPoint(
+                    node.geometry.coordinates[1],
+                    node.geometry.coordinates[0]
+                )
+                userLocation.distanceToAsDouble(nodePoint)
+            }
+        } else {
+            matchedNodes.sortedBy { it.properties.node_name }
+        }
+
+        _uiState.value = _uiState.value.copy(searchResults = sortedResults)
     }
 
-    // --- MODIFIED: Selects the destination AND clears the search ---
-    fun onDestinationSelected(node: NodeFeature) {
+    fun onSearchResultSelected(node: NodeFeature) {
         _uiState.value = _uiState.value.copy(
             endNode = node,
-            searchQuery = node.properties.node_name ?: "", // Show selected name in bar
-            searchResults = emptyList() // Hide search results
+            searchQuery = "",
+            searchResults = emptyList()
         )
     }
 
+    fun clearSearch() {
+        _uiState.value = _uiState.value.copy(
+            searchQuery = "",
+            searchResults = emptyList()
+        )
+    }
 
+    // ================================
+    // EXISTING LOGIC
+    // ================================
     fun getAllEdges(): List<EdgeFeature> = allEdges
 
     fun onStartNodeSelected(node: NodeFeature) {
@@ -86,15 +121,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(endNode = node)
     }
 
-    /**
-     * Swaps the start and end nodes
-     */
     fun swapNodes() {
         val currentState = _uiState.value
         _uiState.value = currentState.copy(
             startNode = currentState.endNode,
             endNode = currentState.startNode,
-            // Clear the previous path when swapping
             calculatedPath = null,
             instructions = emptyList(),
             pathBoundingBox = null
@@ -115,7 +146,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val minLon = path.minOf { it.coordinates[0] }
                 val maxLon = path.maxOf { it.coordinates[0] }
 
-                // Add padding to bounding box for better visualization
                 val latPadding = (maxLat - minLat) * 0.1
                 val lonPadding = (maxLon - minLon) * 0.1
 
@@ -162,22 +192,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Handles the logic when a user taps a facility marker
-     */
     fun onMarkerTapped(node: NodeFeature) {
         val currentState = _uiState.value
 
         when {
-            // If no start point is selected yet, set it as start
-            currentState.startNode == null -> {
-                onStartNodeSelected(node)
-            }
-            // If start is selected but no end, set it as end
-            currentState.endNode == null -> {
-                onEndNodeSelected(node)
-            }
-            // If both are selected, reset and set new start
+            currentState.startNode == null -> onStartNodeSelected(node)
+            currentState.endNode == null -> onEndNodeSelected(node)
             else -> {
                 onStartNodeSelected(node)
                 _uiState.value = _uiState.value.copy(
@@ -190,9 +210,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Clears the current route and selections
-     */
     fun clearRoute() {
         _uiState.value = _uiState.value.copy(
             startNode = null,
@@ -203,34 +220,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    // NEW: Called when the UI gets the user's location
     fun onLocationReceived(location: GeoPoint) {
         _uiState.value = _uiState.value.copy(userGpsLocation = location)
 
         val allNodes = _uiState.value.allNodeFeatures
         if (allNodes.isEmpty()) return
 
-        // Find the top 3 closest nodes to the user's location
         val nearestNodes = allNodes
-            .sortedBy { node ->
-                val nodePoint = GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
+            .sortedBy {
+                val nodePoint = GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0])
                 nodePoint.distanceToAsDouble(location)
             }
             .take(3)
 
         _uiState.value = _uiState.value.copy(
             nearestNodeCandidates = nearestNodes,
-            showNodeSelectionDialog = true // Trigger the dialog to open
+            showNodeSelectionDialog = true
         )
     }
 
-    // NEW: Called when the user confirms their choice from the dialog
     fun confirmStartNode(node: NodeFeature) {
         onStartNodeSelected(node)
         _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false)
     }
 
-    // NEW: Dismisses the dialog
     fun dismissNodeSelectionDialog() {
         _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false)
     }
