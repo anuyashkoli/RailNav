@@ -57,6 +57,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ================================
     // ENHANCED SEARCH LOGIC
     // ================================
+    // ===== UPDATE MainViewModel.kt =====
+// Replace the onSearchQueryChanged method with this enhanced version
+
     fun onSearchQueryChanged(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
 
@@ -65,9 +68,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val userLocation = _uiState.value.userGpsLocation
         val allNodes = _uiState.value.allNodeFeatures
-
         val queryLower = query.lowercase()
 
         // Filter by name or type
@@ -77,16 +78,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             nodeName.contains(queryLower) || nodeType.contains(queryLower)
         }
 
-        // Sort by distance if possible
-        val sortedResults = if (userLocation != null) {
+        // Sort by distance from START NODE if selected, otherwise by user GPS location
+        val sortedResults = if (_uiState.value.startNode != null) {
+            val startNodePoint = GeoPoint(
+                _uiState.value.startNode!!.geometry.coordinates[1],
+                _uiState.value.startNode!!.geometry.coordinates[0]
+            )
             matchedNodes.sortedBy { node ->
                 val nodePoint = GeoPoint(
                     node.geometry.coordinates[1],
                     node.geometry.coordinates[0]
                 )
-                userLocation.distanceToAsDouble(nodePoint)
+                startNodePoint.distanceToAsDouble(nodePoint)
+            }
+        } else if (_uiState.value.userGpsLocation != null) {
+            // Fallback to user GPS location if no start node selected
+            matchedNodes.sortedBy { node ->
+                val nodePoint = GeoPoint(
+                    node.geometry.coordinates[1],
+                    node.geometry.coordinates[0]
+                )
+                _uiState.value.userGpsLocation!!.distanceToAsDouble(nodePoint)
             }
         } else {
+            // Fallback to alphabetical sort
             matchedNodes.sortedBy { it.properties.node_name }
         }
 

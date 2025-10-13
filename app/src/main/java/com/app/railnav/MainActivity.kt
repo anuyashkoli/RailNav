@@ -265,10 +265,47 @@ fun SearchCard(
                 onValueChange = onSearchQueryChanged,
                 label = { Text("Search: Exit, Ticket, Platform...") },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                singleLine = true,
+                textStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Normal),
+                trailingIcon = {
+                    // ✅ Custom Row to show nearest distance
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val closest = uiState.searchResults.firstOrNull()
+                        val userLocation = uiState.userGpsLocation
+
+                        if (closest != null && userLocation != null) {
+                            val nodePoint = GeoPoint(
+                                closest.geometry.coordinates[1],
+                                closest.geometry.coordinates[0]
+                            )
+                            val distance = userLocation.distanceToAsDouble(nodePoint).toInt()
+
+                            // Show a nice rounded distance chip
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    "~${distance}m",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
             )
+
 
 
             ModernNodeSelector(
