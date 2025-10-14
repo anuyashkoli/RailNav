@@ -235,20 +235,34 @@ fun SearchCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ModernNodeSelector(
-                label = "Start Point",
-                icon = Icons.Default.LocationOn,
-                nodes = uiState.allNodeFeatures,
-                selectedNode = uiState.startNode,
-                onNodeSelected = onStartNodeSelected,
-                iconTint = Color(0xFF4CAF50)
-            )
-
-            // Swap button
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ModernNodeSelector(
+                        label = "Start Point",
+                        icon = Icons.Default.LocationOn,
+                        nodes = uiState.allNodeFeatures,
+                        selectedNode = uiState.startNode,
+                        onNodeSelected = onStartNodeSelected,
+                        iconTint = Color(0xFF4CAF50)
+                    )
+                    ModernNodeSelector(
+                        label = "Destination",
+                        icon = Icons.Default.Flag,
+                        nodes = uiState.allNodeFeatures,
+                        selectedNode = uiState.endNode,
+                        onNodeSelected = onEndNodeSelected,
+                        iconTint = Color(0xFFF44336)
+                    )
+                }
+
+                // Swap button
                 IconButton(
                     onClick = onSwapNodes,
                     modifier = Modifier
@@ -304,17 +318,6 @@ fun SearchCard(
                         }
                     }
                 }
-            )
-
-
-
-            ModernNodeSelector(
-                label = "Destination",
-                icon = Icons.Default.Flag,
-                nodes = uiState.allNodeFeatures,
-                selectedNode = uiState.endNode,
-                onNodeSelected = onEndNodeSelected,
-                iconTint = Color(0xFFF44336)
             )
 
             Button(
@@ -478,7 +481,8 @@ fun ModernNodeSelector(
     nodes: List<NodeFeature>,
     selectedNode: NodeFeature?,
     onNodeSelected: (NodeFeature) -> Unit,
-    iconTint: Color
+    iconTint: Color,
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -490,7 +494,7 @@ fun ModernNodeSelector(
             label = { Text(label) },
             leadingIcon = { Icon(icon, null, tint = iconTint) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            modifier = modifier.menuAnchor().fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
