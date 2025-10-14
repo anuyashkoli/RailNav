@@ -125,7 +125,6 @@ fun PathfindingScreen(
                             mainViewModel.findPath()
                             scope.launch { showInstructions = true }
                         },
-                        onSwapNodes = { mainViewModel.swapNodes() },
                         onSearchQueryChanged = { mainViewModel.onSearchQueryChanged(it) }
                     )
 
@@ -150,6 +149,7 @@ fun PathfindingScreen(
                     else
                         locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                 },
+                onSwapNodes = { mainViewModel.swapNodes() }, // Pass swap function here
                 modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)
             )
 
@@ -221,7 +221,6 @@ fun SearchCard(
     onStartNodeSelected: (NodeFeature) -> Unit,
     onEndNodeSelected: (NodeFeature) -> Unit,
     onFindPath: () -> Unit,
-    onSwapNodes: () -> Unit,
     onSearchQueryChanged: (String) -> Unit
 ) {
     Card(
@@ -235,43 +234,23 @@ fun SearchCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ModernNodeSelector(
-                        label = "Start Point",
-                        icon = Icons.Default.LocationOn,
-                        nodes = uiState.allNodeFeatures,
-                        selectedNode = uiState.startNode,
-                        onNodeSelected = onStartNodeSelected,
-                        iconTint = Color(0xFF4CAF50)
-                    )
-                    ModernNodeSelector(
-                        label = "Destination",
-                        icon = Icons.Default.Flag,
-                        nodes = uiState.allNodeFeatures,
-                        selectedNode = uiState.endNode,
-                        onNodeSelected = onEndNodeSelected,
-                        iconTint = Color(0xFFF44336)
-                    )
-                }
-
-                // Swap button
-                IconButton(
-                    onClick = onSwapNodes,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                ) {
-                    Icon(Icons.Default.SwapVert, contentDescription = "Swap", tint = MaterialTheme.colorScheme.primary)
-                }
-            }
+            // Start and Destination selectors are now directly in the Column
+            ModernNodeSelector(
+                label = "Start Point",
+                icon = Icons.Default.LocationOn,
+                nodes = uiState.allNodeFeatures,
+                selectedNode = uiState.startNode,
+                onNodeSelected = onStartNodeSelected,
+                iconTint = Color(0xFF4CAF50)
+            )
+            ModernNodeSelector(
+                label = "Destination",
+                icon = Icons.Default.Flag,
+                nodes = uiState.allNodeFeatures,
+                selectedNode = uiState.endNode,
+                onNodeSelected = onEndNodeSelected,
+                iconTint = Color(0xFFF44336)
+            )
 
             // Search input
             OutlinedTextField(
@@ -279,13 +258,11 @@ fun SearchCard(
                 onValueChange = onSearchQueryChanged,
                 label = { Text("Search: Exit, Ticket, Platform...") },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
-                modifier = Modifier
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true,
                 textStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Normal),
                 trailingIcon = {
-                    // ✅ Custom Row to show nearest distance
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -300,7 +277,6 @@ fun SearchCard(
                             )
                             val distance = userLocation.distanceToAsDouble(nodePoint).toInt()
 
-                            // Show a nice rounded distance chip
                             Box(
                                 modifier = Modifier
                                     .background(
@@ -435,6 +411,7 @@ fun MapControls(
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
     onMyLocationClick: () -> Unit,
+    onSwapNodes: () -> Unit, // Added parameter for swapping
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -442,7 +419,15 @@ fun MapControls(
             icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
             onClick = onToggleTheme
         )
-        MapControlButton(icon = Icons.Default.MyLocation, onClick = onMyLocationClick)
+        // New Swap Button added here
+        MapControlButton(
+            icon = Icons.Default.SwapVert,
+            onClick = onSwapNodes
+        )
+        MapControlButton(
+            icon = Icons.Default.MyLocation,
+            onClick = onMyLocationClick
+        )
     }
 }
 
