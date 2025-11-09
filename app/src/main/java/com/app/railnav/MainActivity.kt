@@ -402,9 +402,9 @@ fun SearchResultItem(
 }
 
 
-// =====================================
+// ====================================
 // Map Controls and Dialogs
-// =====================================
+// ====================================
 @Composable
 fun MapControls(
     isDarkTheme: Boolean,
