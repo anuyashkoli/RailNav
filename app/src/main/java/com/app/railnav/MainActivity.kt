@@ -47,9 +47,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// =======================================
+
 // Main Screen Composable
-// =======================================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PathfindingScreen(
