@@ -34,9 +34,8 @@ import com.app.railnav.ui.theme.RailNavTheme
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 
-// =======================================
 // Main Activity
-// =======================================
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,9 +47,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// =======================================
+
 // Main Screen Composable
-// =======================================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PathfindingScreen(
@@ -403,9 +402,15 @@ fun SearchResultItem(
 }
 
 
+<<<<<<< HEAD
 // ======================================
 // Map Controls and Dialogs
 // ======================================
+=======
+// ===================================
+// Map Controls and Dialogs
+// ===================================
+>>>>>>> 4b2f61103f4618bb6561a3d1c1d08c1247ad5e82
 @Composable
 fun MapControls(
     isDarkTheme: Boolean,
