@@ -42,6 +42,8 @@ class Pathfinder(private val graph: Graph) {
         val cameFrom = mutableMapOf<GraphNode, GraphNode>()
         val costFromStart = mutableMapOf<GraphNode, Double>().withDefault { Double.MAX_VALUE }
 
+        val closedSet = mutableSetOf<GraphNode>()
+
         val openSet = PriorityQueue<GraphNode> { a, b ->
             (costFromStart.getValue(a) + heuristicDistance(a, endNode)).compareTo(
                 costFromStart.getValue(b) + heuristicDistance(b, endNode)
@@ -57,6 +59,9 @@ class Pathfinder(private val graph: Graph) {
             if (current == endNode) {
                 return reconstructPath(cameFrom, current)
             }
+
+            if (current in closedSet) continue
+            closedSet.add(current)
 
             current.neighbors.forEach { (neighborNode, distance) ->
                 val tentativeGScore = costFromStart.getValue(current) + distance
