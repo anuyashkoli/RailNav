@@ -401,16 +401,6 @@ fun SearchResultItem(
     }
 }
 
-
-<<<<<<< HEAD
-// ======================================
-// Map Controls and Dialogs
-// ======================================
-=======
-// ===================================
-// Map Controls and Dialogs
-// ===================================
->>>>>>> 4b2f61103f4618bb6561a3d1c1d08c1247ad5e82
 @Composable
 fun MapControls(
     isDarkTheme: Boolean,
