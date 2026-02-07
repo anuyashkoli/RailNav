@@ -8,6 +8,11 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import org.osmdroid.util.GeoPoint
 
 class LocationHandler(
@@ -15,14 +20,20 @@ class LocationHandler(
     private val onLocationReceived: (GeoPoint) -> Unit,
     private val onPermissionDenied: () -> Unit
 ) {
-    private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private var locationListener: LocationListener? = null
+    private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
     fun hasLocationPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
+    }
+    private val locationCallback = object : LocationCallback() {
+        override fun onLocationResult(locationResult: LocationResult) {
+            locationResult.lastLocation?.let {
+                onLocationReceived(GeoPoint(it.latitude, it.longitude))
+            }
+        }
     }
 
     fun startLocationUpdates() {
@@ -31,44 +42,20 @@ class LocationHandler(
             return
         }
 
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
+            .setMinUpdateDistanceMeters(5f)
+            .build()
+
         try {
-            locationListener = object : LocationListener {
-                override fun onLocationChanged(location: Location) {
-                    val geoPoint = GeoPoint(location.latitude, location.longitude)
-                    onLocationReceived(geoPoint)
-                }
-
-                override fun onProviderEnabled(provider: String) {}
-                override fun onProviderDisabled(provider: String) {}
-                @Deprecated("Deprecated in Java")
-                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-            }
-
-            // Try GPS first, then network
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    5000L, // 5 seconds
-                    5f,    // 5 meters
-                    locationListener!!
-                )
-            }
-
-            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    5000L,
-                    5f,
-                    locationListener!!
-                )
-            }
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback,
+                context.mainLooper
+            )
 
             // Get last known location immediately
-            val lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-
-            lastLocation?.let {
-                onLocationReceived(GeoPoint(it.latitude, it.longitude))
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let { onLocationReceived(GeoPoint(it.latitude, it.longitude)) }
             }
         } catch (e: SecurityException) {
             onPermissionDenied()
@@ -76,12 +63,6 @@ class LocationHandler(
     }
 
     fun stopLocationUpdates() {
-        try {
-            locationListener?.let {
-                locationManager.removeUpdates(it)
-            }
-        } catch (e: SecurityException) {
-            // Ignore
-        }
+        fusedLocationClient.removeLocationUpdates(locationCallback)
     }
 }
