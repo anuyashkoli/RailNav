@@ -4,10 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.railnav.data.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 
@@ -152,37 +154,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val endId = _uiState.value.endNode?.properties?.node_id
 
         if (startId != null && endId != null) {
-            val path = pathfinder.findShortestPath(startId, endId)
-            var boundingBox: BoundingBox? = null
+            // Set loading state immediately on the UI thread
+            _uiState.value = _uiState.value.copy(isLoading = true)
 
-            if (path != null && path.isNotEmpty()) {
-                val minLat = path.minOf { it.coordinates[1] }
-                val maxLat = path.maxOf { it.coordinates[1] }
-                val minLon = path.minOf { it.coordinates[0] }
-                val maxLon = path.maxOf { it.coordinates[0] }
+            viewModelScope.launch {
+                // Move heavy computation to background thread
+                val result = withContext(Dispatchers.Default) {
+                    val path = pathfinder.findShortestPath(startId, endId)
+                    var boundingBox: BoundingBox? = null
 
-                val latPadding = (maxLat - minLat) * 0.1
-                val lonPadding = (maxLon - minLon) * 0.1
+                    if (path != null && path.isNotEmpty()) {
+                        val minLat = path.minOf { it.coordinates[1] }
+                        val maxLat = path.maxOf { it.coordinates[1] }
+                        val minLon = path.minOf { it.coordinates[0] }
+                        val maxLon = path.maxOf { it.coordinates[0] }
 
-                boundingBox = BoundingBox(
-                    maxLat + latPadding,
-                    maxLon + lonPadding,
-                    minLat - latPadding,
-                    minLon - lonPadding
+                        val latPadding = (maxLat - minLat) * 0.1
+                        val lonPadding = (maxLon - minLon) * 0.1
+
+                        boundingBox = BoundingBox(
+                            maxLat + latPadding,
+                            maxLon + lonPadding,
+                            minLat - latPadding,
+                            minLon - lonPadding
+                        )
+                    }
+
+                    val instructions = if (path != null) {
+                        DirectionGenerator.generate(path)
+                    } else {
+                        listOf("No path could be found between the selected locations.")
+                    }
+
+                    // Return result object to UI thread
+                    Triple(path, instructions, boundingBox)
+                }
+
+                // Update UI State back on the Main thread
+                _uiState.value = _uiState.value.copy(
+                    calculatedPath = result.first,
+                    instructions = result.second,
+                    pathBoundingBox = result.third,
+                    isLoading = false
                 )
             }
-
-            val instructions = if (path != null) {
-                DirectionGenerator.generate(path)
-            } else {
-                listOf("No path could be found between the selected locations.")
-            }
-
-            _uiState.value = _uiState.value.copy(
-                calculatedPath = path,
-                instructions = instructions,
-                pathBoundingBox = boundingBox
-            )
         }
     }
 
