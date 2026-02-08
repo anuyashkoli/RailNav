@@ -51,11 +51,26 @@ class Pathfinder(private val graph: Graph) {
             if (current in closedSet) continue
             closedSet.add(current)
 
-            // UPDATED: Destructure the Triple to get edgeProps
             current.neighbors.forEach { (neighborNode, distance, edgeProps) ->
 
-                // NEW: Apply Weighted Heuristic
-                // Penalize stairs to favor accessible routing as per roadmap
+                val currentLevel = current.properties.node_level
+                val neighborLevel = neighborNode.properties.node_level
+
+                val isVerticalConnector = edgeProps.edge_type?.let { type ->
+                    type.contains("STAIR", ignoreCase = true) ||
+                            type.contains("LIFT", ignoreCase = true) ||
+                            type.contains("ESCALATOR", ignoreCase = true)
+                } ?: false
+
+                // Rule: If levels are different, we MUST be using a vertical connector
+                val isPathValid = if (currentLevel != neighborLevel) {
+                    isVerticalConnector
+                } else {
+                    true // Movement on the same floor is always valid
+                }
+
+                if (!isPathValid) return@forEach
+
                 val isStairway = edgeProps.edge_type?.contains("STAIR", ignoreCase = true) == true
                 val weightMultiplier = if (isStairway) 10.0 else 1.0
 
@@ -71,9 +86,11 @@ class Pathfinder(private val graph: Graph) {
                 }
             }
         }
+        // Fix: Added missing return statement for when no path is found
         return null
     }
 
+    // Fix: Moved this function back inside the class
     private fun reconstructPath(cameFrom: Map<GraphNode, GraphNode>, current: GraphNode): List<GraphNode> {
         val totalPath = mutableListOf(current)
         var currentStep = current
