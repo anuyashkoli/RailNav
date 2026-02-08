@@ -73,11 +73,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val allNodes = _uiState.value.allNodeFeatures
         val queryLower = query.lowercase()
 
-        // Filter by name or type
         val matchedNodes = allNodes.filter { node ->
-            val nodeName = node.properties.node_name?.lowercase() ?: ""
-            val nodeType = node.properties.node_type?.lowercase() ?: ""
-            nodeName.contains(queryLower) || nodeType.contains(queryLower)
+            val nodeName = node.properties.node_name ?: ""
+            val nodeType = node.properties.node_type ?: ""
+
+            // Production improvement: Check for exact contains OR a fuzzy match
+            nodeName.contains(queryLower) ||
+                    nodeType.contains(queryLower) ||
+                    SearchUtils.fuzzyMatch(queryLower, nodeName)
         }
 
         // Sort by distance from START NODE if selected, otherwise by user GPS location
