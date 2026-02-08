@@ -1,23 +1,58 @@
 package com.app.railnav.data
 
 import android.content.Context
-import android.graphics.*
-import android.graphics.drawable.BitmapDrawable
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.BlurMaskFilter
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Rect
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.graphics.drawable.Drawable
-import com.app.railnav.R
-import androidx.core.graphics.scale
+import android.util.LruCache
 import androidx.core.graphics.drawable.toDrawable
+import androidx.core.graphics.scale
+import com.app.railnav.R
 
 object MapUtils {
 
-    // Maps a node type string to a drawable resource ID
-    fun getIconForNodeType(nodeType: String?): Int {
-        return when (nodeType) {
-            "ENTRY/EXIT" -> R.drawable.entry_exit
-            "STAIRWAY_TOP", "STAIRWAY_BOT" -> R.drawable.stairway
-            "LIFT_TOP", "LIFT_BOT" -> R.drawable.lift
+    // Cache to store icons so we don't recreate them every frame
+    private val iconCache = LruCache<String, Drawable>(50)
+
+    fun getIconForNodeType(context: Context, nodeType: String?): Drawable {
+        val cacheKey = "node_${nodeType ?: "default"}"
+        iconCache.get(cacheKey)?.let { return it }
+
+        val iconRes = when (nodeType) {
+            "ENTRY/EXIT" -> R.drawable.door_open // Use Material "Login/Logout" style
+            "STAIRWAY_TOP", "STAIRWAY_BOT" -> R.drawable.stairway // Material "Stairs"
+            "LIFT_TOP", "LIFT_BOT" -> R.drawable.lift // Material "Elevator"
             else -> org.osmdroid.library.R.drawable.ic_menu_mylocation
         }
+
+        val drawable = createScaledIcon(context, iconRes, 28)
+        iconCache.put(cacheKey, drawable)
+        return drawable
+    }
+
+    // Helper to generate a unique key for marker combinations
+    fun getCachedMarker(context: Context, type: String, color: Int? = null): Drawable {
+        val key = "${type}_${color ?: 0}"
+        iconCache.get(key)?.let { return it }
+
+        val drawable = when (type) {
+            "START" -> createStartMarkerIcon(context)
+            "END" -> createEndMarkerIcon(context)
+            "GPS" -> createGpsLocationIcon(context)
+            "NAV" -> createNavigationIcon(context)
+            else -> createGpsLocationIcon(context)
+        }
+
+        iconCache.put(key, drawable)
+        return drawable
     }
 
     fun createScaledIcon(context: Context, drawableId: Int, sizeDp: Int): Drawable {
@@ -59,13 +94,8 @@ object MapUtils {
             lineTo(width / 2f - width / 6f, height / 2f)
             arcTo(
                 RectF(
-                    width / 6f,
-                    height / 6f,
-                    width - width / 6f,
-                    height / 2f
-                ),
-                180f,
-                180f
+                    width / 6f, height / 6f, width - width / 6f, height / 2f
+                ), 180f, 180f
             )
             lineTo(width / 2f, height - 10f)
             close()
@@ -91,10 +121,7 @@ object MapUtils {
         val textBounds = Rect()
         textPaint.getTextBounds("A", 0, 1, textBounds)
         canvas.drawText(
-            "A",
-            width / 2f,
-            height / 3f + textBounds.height() / 2f,
-            textPaint
+            "A", width / 2f, height / 3f + textBounds.height() / 2f, textPaint
         )
 
         return bitmap.toDrawable(context.resources)
@@ -131,13 +158,8 @@ object MapUtils {
             lineTo(width / 2f - width / 6f, height / 2f)
             arcTo(
                 RectF(
-                    width / 6f,
-                    height / 6f,
-                    width - width / 6f,
-                    height / 2f
-                ),
-                180f,
-                180f
+                    width / 6f, height / 6f, width - width / 6f, height / 2f
+                ), 180f, 180f
             )
             lineTo(width / 2f, height - 10f)
             close()
@@ -163,10 +185,7 @@ object MapUtils {
         val textBounds = Rect()
         textPaint.getTextBounds("B", 0, 1, textBounds)
         canvas.drawText(
-            "B",
-            width / 2f,
-            height / 3f + textBounds.height() / 2f,
-            textPaint
+            "B", width / 2f, height / 3f + textBounds.height() / 2f, textPaint
         )
 
         return bitmap.toDrawable(context.resources)
