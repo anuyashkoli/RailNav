@@ -154,43 +154,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val endId = _uiState.value.endNode?.properties?.node_id
 
         if (startId != null && endId != null) {
-            // Set loading state immediately on the UI thread
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true) // Show progress indicator
 
             viewModelScope.launch {
-                // Move heavy computation to background thread
+                // Shift CPU-heavy A* to the background thread
                 val result = withContext(Dispatchers.Default) {
                     val path = pathfinder.findShortestPath(startId, endId)
-                    var boundingBox: BoundingBox? = null
+                    val boundingBox = calculateBoundingBox(path)
+                    val instructions = if (path != null) DirectionGenerator.generate(path) else listOf("No path found.")
 
-                    if (path != null && path.isNotEmpty()) {
-                        val minLat = path.minOf { it.coordinates[1] }
-                        val maxLat = path.maxOf { it.coordinates[1] }
-                        val minLon = path.minOf { it.coordinates[0] }
-                        val maxLon = path.maxOf { it.coordinates[0] }
-
-                        val latPadding = (maxLat - minLat) * 0.1
-                        val lonPadding = (maxLon - minLon) * 0.1
-
-                        boundingBox = BoundingBox(
-                            maxLat + latPadding,
-                            maxLon + lonPadding,
-                            minLat - latPadding,
-                            minLon - lonPadding
-                        )
-                    }
-
-                    val instructions = if (path != null) {
-                        DirectionGenerator.generate(path)
-                    } else {
-                        listOf("No path could be found between the selected locations.")
-                    }
-
-                    // Return result object to UI thread
                     Triple(path, instructions, boundingBox)
                 }
 
-                // Update UI State back on the Main thread
                 _uiState.value = _uiState.value.copy(
                     calculatedPath = result.first,
                     instructions = result.second,
@@ -199,6 +174,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+    }
+
+    // Helper function to calculate the map area that contains the entire path
+    private fun calculateBoundingBox(path: List<GraphNode>?): BoundingBox? {
+        if (path == null || path.isEmpty()) return null
+
+        val minLat = path.minOf { it.coordinates[1] }
+        val maxLat = path.maxOf { it.coordinates[1] }
+        val minLon = path.minOf { it.coordinates[0] }
+        val maxLon = path.maxOf { it.coordinates[0] }
+
+        // Add 10% padding so the path isn't touching the edges of the screen
+        val latPadding = (maxLat - minLat) * 0.1
+        val lonPadding = (maxLon - minLon) * 0.1
+
+        return BoundingBox(
+            maxLat + latPadding,
+            maxLon + lonPadding,
+            minLat - latPadding,
+            minLon - lonPadding
+        )
     }
 
     fun onZoomToPathComplete() {
