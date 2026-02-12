@@ -18,3 +18,13 @@ RailNav-keystore
 thane_station.gpkg
 /app/build/
 release-key
+
+Exclude all generated build artifacts
+**/build/
+*.apk
+*.ap_
+*.aab
+
+# Specific metadata and profile files seen in your commit window
+output-metadata.json
+*.dm
