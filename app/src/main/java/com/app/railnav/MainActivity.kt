@@ -149,7 +149,9 @@ fun PathfindingScreen(
                         locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                 },
                 onSwapNodes = { mainViewModel.swapNodes() }, // Pass swap function here
-                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 16.dp)
             )
 
             // ---------------- Floating Route Button ----------------
@@ -298,7 +300,9 @@ fun SearchCard(
             Button(
                 onClick = onFindPath,
                 enabled = uiState.startNode != null && uiState.endNode != null,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Navigation, null)
@@ -325,7 +329,9 @@ fun SearchResultsList(
         )
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 300.dp),
             contentPadding = PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -473,7 +479,9 @@ fun ModernNodeSelector(
             label = { Text(label) },
             leadingIcon = { Icon(icon, null, tint = iconTint) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = modifier.menuAnchor().fillMaxWidth(),
+            modifier = modifier
+                .menuAnchor()
+                .fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -504,33 +512,54 @@ fun NodeSelectionDialog(
         title = { Text("Choose Your Starting Point", fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                Text("We found these nearby locations. Select one:", Modifier.padding(bottom = 16.dp))
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp),
+                Text(
+                    "We found these nearby locations. Select one:",
+                    Modifier.padding(bottom = 16.dp)
+                )
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.heightIn(max = 300.dp)
                 ) {
                     items(nearestNodes) { node ->
                         Card(
-                            modifier = Modifier.fillMaxWidth().clickable { onNodeSelected(node) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNodeSelected(node) },
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(node.properties.node_name ?: "Unknown", fontWeight = FontWeight.Bold)
+                                    Text(
+                                        node.properties.node_name ?: "Unknown",
+                                        fontWeight = FontWeight.Bold
+                                    )
                                     node.properties.node_type?.let {
                                         Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     userLocation?.let {
-                                        val nodePoint = GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
+                                        val nodePoint = GeoPoint(
+                                            node.geometry.coordinates[1],
+                                            node.geometry.coordinates[0]
+                                        )
                                         val distance = it.distanceToAsDouble(nodePoint).toInt()
-                                        Text("~${distance}m", color = MaterialTheme.colorScheme.primary)
+                                        Text(
+                                            "~${distance}m",
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
                                     }
                                 }
-                                Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
+                                Icon(
+                                    Icons.Default.ChevronRight,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }
@@ -549,9 +578,13 @@ fun InstructionsSheet(
     endNode: NodeFeature?,
     onClose: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 16.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -580,7 +613,12 @@ fun InstructionsSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         if (index == instructions.lastIndex)
-                            Icon(Icons.Default.Flag, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.Flag,
+                                null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
                         else
                             Text("${index + 1}", color = Color.White, fontWeight = FontWeight.Bold)
                     }

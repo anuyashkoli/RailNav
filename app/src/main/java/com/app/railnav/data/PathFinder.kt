@@ -10,16 +10,12 @@ class Pathfinder(private val graph: Graph) {
         val lon1 = nodeA.coordinates[0]
         val lat2 = nodeB.coordinates[1]
         val lon2 = nodeB.coordinates[0]
-
         val earthRadius = 6371e3
         val lat1Rad = Math.toRadians(lat1)
         val lat2Rad = Math.toRadians(lat2)
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
-
-        val a = sin(dLat / 2) * sin(dLat / 2) +
-                cos(lat1Rad) * cos(lat2Rad) *
-                sin(dLon / 2) * sin(dLon / 2)
+        val a = sin(dLat / 2) * sin(dLat / 2) + cos(lat1Rad) * cos(lat2Rad) * sin(dLon / 2) * sin(dLon / 2)
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
         return earthRadius * c
     }
@@ -27,70 +23,39 @@ class Pathfinder(private val graph: Graph) {
     fun findShortestPath(startNodeId: Int, endNodeId: Int): List<GraphNode>? {
         val startNode = graph.getNodeById(startNodeId)
         val endNode = graph.getNodeById(endNodeId)
-
         if (startNode == null || endNode == null) return null
-
         val cameFrom = mutableMapOf<GraphNode, GraphNode>()
         val costFromStart = mutableMapOf<GraphNode, Double>().withDefault { Double.MAX_VALUE }
         val closedSet = mutableSetOf<GraphNode>()
-
         val openSet = PriorityQueue<GraphNode> { a, b ->
-            (costFromStart.getValue(a) + heuristicDistance(a, endNode)).compareTo(
-                costFromStart.getValue(b) + heuristicDistance(b, endNode)
-            )
+            (costFromStart.getValue(a) + heuristicDistance(a, endNode)).compareTo(costFromStart.getValue(b) + heuristicDistance(b, endNode))
         }
-
         costFromStart[startNode] = 0.0
         openSet.add(startNode)
-
         while (openSet.isNotEmpty()) {
             val current = openSet.poll()!!
-
             if (current == endNode) return reconstructPath(cameFrom, current)
-
             if (current in closedSet) continue
             closedSet.add(current)
-
             current.neighbors.forEach { (neighborNode, distance, edgeProps) ->
-
                 val currentLevel = current.properties.node_level
                 val neighborLevel = neighborNode.properties.node_level
-
-                val isVerticalConnector = edgeProps.edge_type?.let { type ->
-                    type.contains("STAIR", ignoreCase = true) ||
-                            type.contains("LIFT", ignoreCase = true) ||
-                            type.contains("ESCALATOR", ignoreCase = true)
+                val isVertical = edgeProps.edge_type?.let {
+                    it.contains("STAIR", true) || it.contains("LIFT", true) || it.contains("ESCALATOR", true)
                 } ?: false
-
-                // Rule: If levels are different, we MUST be using a vertical connector
-                val isPathValid = if (currentLevel != neighborLevel) {
-                    isVerticalConnector
-                } else {
-                    true // Movement on the same floor is always valid
-                }
-
-                if (!isPathValid) return@forEach
-
-                val isStairway = edgeProps.edge_type?.contains("STAIR", ignoreCase = true) == true
-                val weightMultiplier = if (isStairway) 10.0 else 1.0
-
-                val weightedDistance = distance * weightMultiplier
-                val tentativeGScore = costFromStart.getValue(current) + weightedDistance
-
+                if (currentLevel != neighborLevel && !isVertical) return@forEach
+                val weightMultiplier = if (edgeProps.edge_type?.contains("STAIR", true) == true) 10.0 else 1.0
+                val tentativeGScore = costFromStart.getValue(current) + (distance * weightMultiplier)
                 if (tentativeGScore < costFromStart.getValue(neighborNode)) {
                     cameFrom[neighborNode] = current
                     costFromStart[neighborNode] = tentativeGScore
-                    if (neighborNode !in openSet) {
-                        openSet.add(neighborNode)
-                    }
+                    if (neighborNode !in openSet) openSet.add(neighborNode)
                 }
             }
         }
-        // Fix: Added missing return statement for when no path is found
         return null
     }
 
-    // Fix: Moved this function back inside the class
     private fun reconstructPath(cameFrom: Map<GraphNode, GraphNode>, current: GraphNode): List<GraphNode> {
         val totalPath = mutableListOf(current)
         var currentStep = current
