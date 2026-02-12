@@ -16,5 +16,5 @@ local.properties
 new-key
 RailNav-keystore
 thane_station.gpkg
-app
+/app/build/
 release-key
