@@ -13,6 +13,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.app.railnav.data.*
 import kotlinx.coroutines.delay
 import org.osmdroid.config.Configuration
@@ -127,7 +128,7 @@ fun rememberMapViewWithLifecycle(onMapTap: (GeoPoint) -> Unit): MapView {
             }))
         }
     }
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) mapView.onResume() else if (event == Lifecycle.Event.ON_PAUSE) mapView.onPause() }
         lifecycle.addObserver(observer)
