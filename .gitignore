@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+new-key
+RailNav-keystore
+thane_station.gpkg
+app
+release-key
