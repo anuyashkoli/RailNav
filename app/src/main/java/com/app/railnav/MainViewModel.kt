@@ -49,6 +49,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 allNodeFeatures = nodeFeatures.sortedBy { it.properties.node_name },
                 isLoading = false
             )
+            checkTrainStatus("11029");
         }
     }
 
@@ -200,24 +201,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun checkTrainStatus(trainNumber: String) {
         viewModelScope.launch {
             try {
+                println("DEBUG: Starting API call for $trainNumber...") // Log start
                 _uiState.value = _uiState.value.copy(isLoading = true)
 
-                // 1. Make the Network Call
-                // Note: You need a valid API Key for RapidAPI.
-                // For testing, we can wrap this in try/catch to print the error.
-                val status = RetrofitClient.api.getLiveTrainStatus(
-                    apiKey = "YOUR_RAPIDAPI_KEY_HERE",
-                    trainNumber = trainNumber,
-                    date = "2026-03-11" // Example date
+                val response = RetrofitClient.api.getTrainSchedule(
+                    apiKey = "f1207f505dmsh7e8c7533c3f8f4dp11f1e9jsn498a3d1e06f5",
+                    trainNumber = trainNumber
                 )
 
-                // 2. Log the result (or handle it in UI)
-                println("Train Status: ${status.statusMessage}, Platform: ${status.platformNumber}")
+                // Log the raw success status
+                println("DEBUG: API Response Success: ${response.success}")
 
-                // 3. (Future) Logic to auto-set destination based on platform
+                if (response.success) {
+                    println("DEBUG: Train Schedule Fetched: ${response.data.size} stations")
+                    // Use response.data here...
+                } else {
+                    println("DEBUG: API returned success=false. Check API key or quotas.")
+                }
 
                 _uiState.value = _uiState.value.copy(isLoading = false)
+
             } catch (e: Exception) {
+                // Log the actual error message
+                println("DEBUG: Network Error: ${e.message}")
                 e.printStackTrace()
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
