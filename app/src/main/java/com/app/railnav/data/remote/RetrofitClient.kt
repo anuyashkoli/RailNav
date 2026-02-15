@@ -9,7 +9,7 @@ import retrofit2.Retrofit
 
 object RetrofitClient {
 
-    private const val BASE_URL = "https://indian-railway-api.p.rapidapi.com/" // Placeholder URL
+    private const val BASE_URL = "https://irctc-api2.p.rapidapi.com/"
 
     // 1. JSON Configuration (Lenient to prevent crashes on bad data)
     private val json = Json {
