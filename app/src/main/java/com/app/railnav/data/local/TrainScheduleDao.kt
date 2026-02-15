@@ -7,16 +7,9 @@ import androidx.room.Query
 
 @Dao
 interface TrainScheduleDao {
-
-    // 1. SAVE: Populates the DB with the list fetched from API
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSchedule(schedule: List<TrainScheduleEntity>)
+    suspend fun insertAll(schedules: List<TrainScheduleEntity>)
 
-    // 2. READ: Checks if we already have the platform info locally
-    @Query("SELECT * FROM train_schedules WHERE trainNumber = :trainNo AND stationCode = :stationCode LIMIT 1")
-    suspend fun getStationDetails(trainNo: String, stationCode: String): TrainScheduleEntity?
-    
-    // 3. CHECK CACHE: See if we have ANY data for this train
-    @Query("SELECT COUNT(*) FROM train_schedules WHERE trainNumber = :trainNo")
-    suspend fun hasScheduleFor(trainNo: String): Int
+    @Query("SELECT * FROM train_schedules WHERE trainNumber = :trainNo AND stationCode = :code LIMIT 1")
+    suspend fun getStationInfo(trainNo: String, code: String): TrainScheduleEntity?
 }
