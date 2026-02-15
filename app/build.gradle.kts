@@ -1,7 +1,8 @@
 plugins {
-    alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -68,4 +69,11 @@ dependencies {
     implementation(libs.osmdroid.android)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.play.services.location)
+// ROOM IMPLEMENTATION
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+// KSP (Annotation Processing)
+    ksp(libs.androidx.room.compiler)
+// JSON SERIALIZATION (Keep this for initial seed data)
+    implementation(libs.kotlinx.serialization.json)
 }
