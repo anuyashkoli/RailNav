@@ -3,7 +3,15 @@ package com.app.railnav
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.app.railnav.data.*
+import com.app.railnav.data.DirectionGenerator
+import com.app.railnav.data.EdgeFeature
+import com.app.railnav.data.Graph
+import com.app.railnav.data.GraphNode
+import com.app.railnav.data.GraphRepository
+import com.app.railnav.data.NodeFeature
+import com.app.railnav.data.Pathfinder
+import com.app.railnav.data.TrainRepository
+import com.app.railnav.data.local.RailNavDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,8 +20,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
-import com.app.railnav.data.remote.RetrofitClient
 
+/**
+ * UI State for the Main Screen
+ */
 data class MainUiState(
     val allNodeFeatures: List<NodeFeature> = emptyList(),
     val startNode: NodeFeature? = null,
@@ -38,18 +48,67 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private lateinit var pathfinder: Pathfinder
     private var allEdges: List<EdgeFeature> = emptyList()
 
+    // Initialize the Repository with the Room DAO [cite: 17]
+    private val trainRepository: TrainRepository by lazy {
+        val db = RailNavDatabase.getDatabase(getApplication())
+        TrainRepository(db.trainScheduleDao())
+    }
+
     init {
         viewModelScope.launch {
+            // Load Graph Data from Assets
             val nodeFeatures = GraphRepository.loadNodes(getApplication())
             val edgeFeatures = GraphRepository.loadEdges(getApplication())
             allEdges = edgeFeatures
+
+            // Build the Graph for navigation
             graph.build(nodeFeatures, edgeFeatures)
             pathfinder = Pathfinder(graph)
+
             _uiState.value = MainUiState(
                 allNodeFeatures = nodeFeatures.sortedBy { it.properties.node_name },
                 isLoading = false
             )
-            checkTrainStatus("11029");
+
+            // TRIGGER: Check Koyna Express (11029) status at Thane (TNA) on startup [cite: 6, 8]
+            checkTrainStatus("11029", "TNA")
+        }
+    }
+
+    // ================================
+    // TRAIN STATUS & SMART LINK [cite: 4, 10]
+    // ================================
+
+    /**
+     * Fetches the platform number and automatically sets it as the navigation destination.
+     */
+    fun checkTrainStatus(trainNumber: String, currentStationCode: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+
+            try {
+                // Get platform info (Handles Local DB cache or API call automatically) [cite: 17]
+                val platform = trainRepository.getPlatformInfo(trainNumber, currentStationCode)
+
+                if (platform != null && platform > 0) {
+                    println("DEBUG: Train $trainNumber is on Platform $platform at $currentStationCode")
+
+                    // THE SMART LINK: Map Platform Number to Graph Node [cite: 10]
+                    val platformNodeName = "Platform $platform"
+                    val targetNode = _uiState.value.allNodeFeatures.find {
+                        it.properties.node_name?.contains(platformNodeName, ignoreCase = true) == true
+                    }
+
+                    if (targetNode != null) {
+                        onEndNodeSelected(targetNode)
+                        findPath() // Automatically trigger route calculation to the platform
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
         }
     }
 
@@ -71,7 +130,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val nodeName = node.properties.node_name?.lowercase() ?: ""
             val nodeType = node.properties.node_type?.lowercase() ?: ""
 
-            // Production improvement: Standard contains check + Fuzzy Levenshtein match
             nodeName.contains(queryLower) ||
                     nodeType.contains(queryLower) ||
                     fuzzyMatch(queryLower, nodeName)
@@ -110,6 +168,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun findPath() {
         val startId = _uiState.value.startNode?.properties?.node_id
         val endId = _uiState.value.endNode?.properties?.node_id
+
         if (startId != null && endId != null) {
             _uiState.value = _uiState.value.copy(isLoading = true)
             viewModelScope.launch {
@@ -189,44 +248,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(nearestNodeCandidates = nearestNodes, showNodeSelectionDialog = true)
     }
 
-    fun onSearchResultSelected(node: NodeFeature) { _uiState.value = _uiState.value.copy(endNode = node, searchQuery = "", searchResults = emptyList()) }
+    fun onSearchResultSelected(node: NodeFeature) {
+        _uiState.value = _uiState.value.copy(endNode = node, searchQuery = "", searchResults = emptyList())
+        findPath()
+    }
+
     fun onStartNodeSelected(node: NodeFeature) { _uiState.value = _uiState.value.copy(startNode = node) }
     fun onEndNodeSelected(node: NodeFeature) { _uiState.value = _uiState.value.copy(endNode = node) }
     fun getAllEdges(): List<EdgeFeature> = allEdges
     fun onZoomToPathComplete() { _uiState.value = _uiState.value.copy(pathBoundingBox = null) }
     fun confirmStartNode(node: NodeFeature) { onStartNodeSelected(node); _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false) }
     fun dismissNodeSelectionDialog() { _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false) }
-
-    // ADD THIS NEW FUNCTION
-    fun checkTrainStatus(trainNumber: String) {
-        viewModelScope.launch {
-            try {
-                println("DEBUG: Starting API call for $trainNumber...") // Log start
-                _uiState.value = _uiState.value.copy(isLoading = true)
-
-                val response = RetrofitClient.api.getTrainSchedule(
-                    apiKey = "f1207f505dmsh7e8c7533c3f8f4dp11f1e9jsn498a3d1e06f5",
-                    trainNumber = trainNumber
-                )
-
-                // Log the raw success status
-                println("DEBUG: API Response Success: ${response.success}")
-
-                if (response.success) {
-                    println("DEBUG: Train Schedule Fetched: ${response.data.size} stations")
-                    // Use response.data here...
-                } else {
-                    println("DEBUG: API returned success=false. Check API key or quotas.")
-                }
-
-                _uiState.value = _uiState.value.copy(isLoading = false)
-
-            } catch (e: Exception) {
-                // Log the actual error message
-                println("DEBUG: Network Error: ${e.message}")
-                e.printStackTrace()
-                _uiState.value = _uiState.value.copy(isLoading = false)
-            }
-        }
-    }
 }
