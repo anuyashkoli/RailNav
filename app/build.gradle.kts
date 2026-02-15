@@ -69,11 +69,20 @@ dependencies {
     implementation(libs.osmdroid.android)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.play.services.location)
-// ROOM IMPLEMENTATION
+
+    // ROOM IMPLEMENTATION
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-// KSP (Annotation Processing)
+
+    // KSP (Annotation Processing)
     ksp(libs.androidx.room.compiler)
-// JSON SERIALIZATION (Keep this for initial seed data)
+
+    // JSON SERIALIZATION (Keep this for initial seed data)
     implementation(libs.kotlinx.serialization.json)
+
+    // NETWORKING (Retrofit + OkHttp)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.kotlinx)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
 }
