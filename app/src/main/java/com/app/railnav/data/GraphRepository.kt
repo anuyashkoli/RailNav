@@ -9,10 +9,11 @@ import kotlinx.coroutines.delay
 object GraphRepository {
 
     suspend fun loadNodes(context: Context): List<NodeFeature> {
-        val db = RailNavDatabase.getDatabase(context, CoroutineScope(Dispatchers.IO))
+        // FIXED: Removed the extra argument. Only 'context' is needed.
+        val db = RailNavDatabase.getDatabase(context)
 
         // Safety: Wait briefly if the DB is still seeding (only runs on first install)
-        var attempts =  0
+        var attempts = 0
         while (db.graphDao().getNodeCount() == 0 && attempts < 10) {
             delay(100) // Wait 100ms
             attempts++
@@ -36,7 +37,8 @@ object GraphRepository {
     }
 
     suspend fun loadEdges(context: Context): List<EdgeFeature> {
-        val db = RailNavDatabase.getDatabase(context, CoroutineScope(Dispatchers.IO))
+        // FIXED: Removed the extra argument here as well.
+        val db = RailNavDatabase.getDatabase(context)
         val entities = db.graphDao().getAllEdges()
 
         // Map Entity -> Feature

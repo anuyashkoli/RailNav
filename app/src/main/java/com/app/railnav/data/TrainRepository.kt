@@ -10,16 +10,13 @@ class TrainRepository(private val dao: TrainScheduleDao) {
 
     suspend fun getPlatformInfo(trainNumber: String, currentStationCode: String): Int? {
         return withContext(Dispatchers.IO) {
-            
-            // STEP 1: Check Local Database (Cache)
-            val localData = dao.getStationDetails(trainNumber, currentStationCode)
+
+            // FIXED: Changed getStationDetails to getStationInfo to match DAO
+            val localData = dao.getStationInfo(trainNumber, currentStationCode)
             if (localData != null) {
-                println("Loaded from Local DB: Platform ${localData.platformNumber}")
                 return@withContext localData.platformNumber
             }
 
-            // STEP 2: If missing, Fetch from API
-            println("Local DB empty. Fetching from API...")
             try {
                 val response = RetrofitClient.api.getTrainSchedule(
                     apiKey = "f1207f505dmsh7e8c7533c3f8f4dp11f1e9jsn498a3d1e06f5",
@@ -27,7 +24,6 @@ class TrainRepository(private val dao: TrainScheduleDao) {
                 )
 
                 if (response.success) {
-                    // STEP 3: Populate Local Database (Cache it!)
                     val entities = response.data.map { dto ->
                         TrainScheduleEntity(
                             trainNumber = trainNumber,
@@ -40,9 +36,9 @@ class TrainRepository(private val dao: TrainScheduleDao) {
                             longitude = dto.lng?.toDoubleOrNull()
                         )
                     }
-                    dao.insertSchedule(entities)
+                    // FIXED: Changed insertSchedule to insertAll to match DAO
+                    dao.insertAll(entities)
 
-                    // STEP 4: Return the specific requested platform
                     val target = entities.find { it.stationCode == currentStationCode }
                     return@withContext target?.platformNumber
                 }
