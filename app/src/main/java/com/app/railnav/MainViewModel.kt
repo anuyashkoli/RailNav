@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
+import com.app.railnav.data.remote.RetrofitClient
 
 data class MainUiState(
     val allNodeFeatures: List<NodeFeature> = emptyList(),
@@ -194,4 +195,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onZoomToPathComplete() { _uiState.value = _uiState.value.copy(pathBoundingBox = null) }
     fun confirmStartNode(node: NodeFeature) { onStartNodeSelected(node); _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false) }
     fun dismissNodeSelectionDialog() { _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false) }
+
+    // ADD THIS NEW FUNCTION
+    fun checkTrainStatus(trainNumber: String) {
+        viewModelScope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+
+                // 1. Make the Network Call
+                // Note: You need a valid API Key for RapidAPI.
+                // For testing, we can wrap this in try/catch to print the error.
+                val status = RetrofitClient.api.getLiveTrainStatus(
+                    apiKey = "YOUR_RAPIDAPI_KEY_HERE",
+                    trainNumber = trainNumber,
+                    date = "2026-03-11" // Example date
+                )
+
+                // 2. Log the result (or handle it in UI)
+                println("Train Status: ${status.statusMessage}, Platform: ${status.platformNumber}")
+
+                // 3. (Future) Logic to auto-set destination based on platform
+
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
+        }
+    }
 }
