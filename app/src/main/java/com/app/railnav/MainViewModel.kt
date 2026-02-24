@@ -48,11 +48,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private lateinit var pathfinder: Pathfinder
     private var allEdges: List<EdgeFeature> = emptyList()
 
-    // Initialize the Repository with the Room DAO [cite: 17]
+    // Initialize the Repository with the Room DAO
+    // TEMPORARILY COMMENT OUT UNTIL TrainScheduleDao IS BUILT
+    /*
     private val trainRepository: TrainRepository by lazy {
         val db = RailNavDatabase.getDatabase(getApplication())
         TrainRepository(db.trainScheduleDao())
     }
+    */
+
 
     init {
         viewModelScope.launch {
@@ -71,7 +75,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
 
             // TRIGGER: Check Koyna Express (11029) status at Thane (TNA) on startup [cite: 6, 8]
-            checkTrainStatus("11029", "TNA")
+            // checkTrainStatus("11029", "TNA") TEMPORARILY COMMENT OUT
         }
     }
 
@@ -82,6 +86,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Fetches the platform number and automatically sets it as the navigation destination.
      */
+
+    // TEMPORARILY COMMENT OUT THIS ENTIRE FUNCTION
+    /*
     fun checkTrainStatus(trainNumber: String, currentStationCode: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
@@ -111,6 +118,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+     */
 
     // ================================
     // SEARCH LOGIC (WITH FUZZY MATCH)
