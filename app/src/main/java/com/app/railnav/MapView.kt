@@ -98,7 +98,7 @@ fun MapView(
                         "LIFT_TOP", "LIFT_BOT" -> R.drawable.lift
                         else -> org.osmdroid.library.R.drawable.ic_menu_mylocation
                     }
-                    icon = MapUtils.getThemedIcon(context, iconRes, currentThemeColor, 28)
+                    icon = MapUtils.getThemedIcon(context, iconRes, currentThemeColor, 8)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                     title = node.properties.node_name
                     setOnMarkerClickListener { _, _ -> onMarkerTap(node); true }
