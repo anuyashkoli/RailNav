@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,26 +30,21 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.app.railnav.data.NodeFeature
+import com.app.railnav.data.*
 import com.app.railnav.ui.theme.RailNavTheme
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 
-// Main Activity
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            RailNavTheme {
-                PathfindingScreen()
-            }
-        }
+        setContent { RailNavTheme { PathfindingScreen() } }
     }
 }
 
-
-// Main Screen Composable
+// ─────────────────────────────────────────────────────────────────────────────
+//  Root screen
+// ─────────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,27 +53,27 @@ fun PathfindingScreen(
     mainViewModel: MainViewModel = viewModel()
 ) {
     val uiState by mainViewModel.uiState.collectAsState()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val instructionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val trainSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val scope = rememberCoroutineScope()
+
     var showInstructions by remember { mutableStateOf(false) }
     var isDarkTheme by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
-    // Location handling
+    val context = LocalContext.current
     val locationHandler = remember {
         LocationHandler(
-            context = context,
-            onLocationReceived = { geoPoint -> mainViewModel.onLocationReceived(geoPoint) },
+            // FIX: pass applicationContext to avoid Activity context leak
+            context = context.applicationContext,
+            onLocationReceived = { mainViewModel.onLocationReceived(it) },
             onPermissionDenied = { showPermissionDialog = true }
         )
     }
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) locationHandler.startLocationUpdates()
-        else showPermissionDialog = true
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) locationHandler.startLocationUpdates() else showPermissionDialog = true
     }
 
     DisposableEffect(Unit) { onDispose { locationHandler.stopLocationUpdates() } }
@@ -89,7 +85,7 @@ fun PathfindingScreen(
     RailNavTheme(darkTheme = isDarkTheme) {
         Box(modifier = modifier.fillMaxSize()) {
 
-            // ---------------- Map View ----------------
+            // ── Map ────────────────────────────────────────────────────────
             MapView(
                 modifier = Modifier.fillMaxSize(),
                 path = uiState.calculatedPath,
@@ -103,7 +99,7 @@ fun PathfindingScreen(
                 startNode = uiState.startNode
             )
 
-            // ---------------- Search Section ----------------
+            // ── Top search card ────────────────────────────────────────────
             AnimatedVisibility(
                 visible = !uiState.isLoading,
                 enter = slideInVertically() + fadeIn(),
@@ -115,20 +111,48 @@ fun PathfindingScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
-                    SearchCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        uiState = uiState,
-                        onStartNodeSelected = { mainViewModel.onStartNodeSelected(it) },
-                        onEndNodeSelected = { mainViewModel.onEndNodeSelected(it) },
-                        onFindPath = {
-                            mainViewModel.findPath()
-                            scope.launch { showInstructions = true }
-                        },
-                        onSearchQueryChanged = { mainViewModel.onSearchQueryChanged(it) }
-                    )
+                    if (uiState.isAdvancedMode) {
+                        // ── Legacy manual node picker ──────────────────────
+                        AdvancedSearchCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            uiState = uiState,
+                            onStartNodeSelected = { mainViewModel.onStartNodeSelected(it) },
+                            onEndNodeSelected = { mainViewModel.onEndNodeSelected(it) },
+                            onFindPath = {
+                                mainViewModel.findPath()
+                                scope.launch { showInstructions = true }
+                            },
+                            onSearchQueryChanged = { mainViewModel.onSearchQueryChanged(it) },
+                            onSwitchToSimpleMode = { mainViewModel.toggleAdvancedMode() }
+                        )
+                    } else {
+                        // ── Train destination picker (default) ─────────────
+                        TrainDestinationCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            uiState = uiState,
+                            onQueryChange = { mainViewModel.onTrainDestinationQueryChanged(it) },
+                            onSuggestionSelect = { mainViewModel.onDestinationSelected(it) },
+                            onShowTrains = { mainViewModel.openTrainSheet() },
+                            onFindPath = {
+                                mainViewModel.findPath()
+                                scope.launch { showInstructions = true }
+                            },
+                            onSwitchToAdvancedMode = { mainViewModel.toggleAdvancedMode() }
+                        )
+                    }
 
-                    if (uiState.searchResults.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    // Autocomplete suggestions (train mode only)
+                    if (!uiState.isAdvancedMode && uiState.destinationSuggestions.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        StationSuggestionList(
+                            suggestions = uiState.destinationSuggestions,
+                            onSelect = { mainViewModel.onDestinationSelected(it) }
+                        )
+                    }
+
+                    // Legacy search results (advanced mode)
+                    if (uiState.isAdvancedMode && uiState.searchResults.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
                         SearchResultsList(
                             results = uiState.searchResults,
                             userLocation = uiState.userGpsLocation,
@@ -138,7 +162,7 @@ fun PathfindingScreen(
                 }
             }
 
-            // ---------------- Map Controls ----------------
+            // ── Side controls ──────────────────────────────────────────────
             MapControls(
                 isDarkTheme = isDarkTheme,
                 onToggleTheme = { isDarkTheme = !isDarkTheme },
@@ -146,15 +170,17 @@ fun PathfindingScreen(
                     if (locationHandler.hasLocationPermission())
                         locationHandler.startLocationUpdates()
                     else
-                        locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                 },
-                onSwapNodes = { mainViewModel.swapNodes() }, // Pass swap function here
+                onSwapNodes = { mainViewModel.swapNodes() },
+                onFacilities = { mainViewModel.showFacilities() },
+                showSwap = uiState.isAdvancedMode,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp)
             )
 
-            // ---------------- Floating Route Button ----------------
+            // ── View Route FAB ─────────────────────────────────────────────
             if (uiState.calculatedPath != null) {
                 ExtendedFloatingActionButton(
                     onClick = { showInstructions = true },
@@ -162,16 +188,17 @@ fun PathfindingScreen(
                         .align(Alignment.BottomEnd)
                         .padding(16.dp),
                     containerColor = MaterialTheme.colorScheme.primary,
-                    icon = { Icon(Icons.Default.Directions, "Show Directions") },
+                    icon = { Icon(Icons.Default.Directions, null) },
                     text = { Text("View Route") }
                 )
             }
 
-            // ---------------- Loading Indicator ----------------
-            if (uiState.isLoading)
+            // ── Loading ────────────────────────────────────────────────────
+            if (uiState.isLoading) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
+            }
 
-            // ---------------- Node Selection Dialog ----------------
+            // ── Node selection dialog ──────────────────────────────────────
             if (uiState.showNodeSelectionDialog) {
                 NodeSelectionDialog(
                     nearestNodes = uiState.nearestNodeCandidates,
@@ -181,24 +208,23 @@ fun PathfindingScreen(
                 )
             }
 
-            // ---------------- Location Permission Dialog ----------------
+            // ── Location permission dialog ─────────────────────────────────
             if (showPermissionDialog) {
                 LocationPermissionDialog(
                     onGrant = {
                         showPermissionDialog = false
-                        locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     },
                     onDismiss = { showPermissionDialog = false }
                 )
             }
 
-            // ---------------- Instructions Sheet ----------------
+            // ── Turn-by-turn instructions sheet ───────────────────────────
             if (showInstructions && uiState.instructions.isNotEmpty()) {
                 ModalBottomSheet(
                     onDismissRequest = { showInstructions = false },
-                    sheetState = sheetState,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    dragHandle = { BottomSheetDefaults.DragHandle() }
+                    sheetState = instructionsSheetState,
+                    containerColor = MaterialTheme.colorScheme.surface
                 ) {
                     InstructionsSheet(
                         instructions = uiState.instructions,
@@ -208,34 +234,508 @@ fun PathfindingScreen(
                     )
                 }
             }
+
+            // ── Train list sheet ───────────────────────────────────────────
+            if (uiState.showTrainSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { mainViewModel.dismissTrainSheet() },
+                    sheetState = trainSheetState,
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    TrainListSheet(
+                        destination = uiState.selectedDestination ?: "",
+                        trains = uiState.availableTrains,
+                        selectedTrain = uiState.selectedTrain,
+                        onTrainSelect = { mainViewModel.onTrainSelected(it) },
+                        onDismiss = { mainViewModel.dismissTrainSheet() }
+                    )
+                }
+            }
+
+            // ── Facilities sheet ───────────────────────────────────────────
+            if (uiState.showFacilitiesSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { mainViewModel.dismissFacilities() },
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    FacilitiesSheet(
+                        facilities = TrainRepository.facilities,
+                        onFacilitySelect = { mainViewModel.navigateToFacility(it) },
+                        onDismiss = { mainViewModel.dismissFacilities() }
+                    )
+                }
+            }
         }
     }
 }
 
-// =======================================
-// Search UI Composables
-// =======================================
+// ─────────────────────────────────────────────────────────────────────────────
+//  Train destination card  (the new default top card)
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
-fun SearchCard(
+fun TrainDestinationCard(
     modifier: Modifier = Modifier,
     uiState: MainUiState,
-    onStartNodeSelected: (NodeFeature) -> Unit,
-    onEndNodeSelected: (NodeFeature) -> Unit,
+    onQueryChange: (String) -> Unit,
+    onSuggestionSelect: (String) -> Unit,
+    onShowTrains: () -> Unit,
     onFindPath: () -> Unit,
-    onSearchQueryChanged: (String) -> Unit
+    onSwitchToAdvancedMode: () -> Unit
 ) {
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
         )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Start and Destination selectors are now directly in the Column
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "🚆  Where are you going?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                TextButton(onClick = onSwitchToAdvancedMode) {
+                    Text("Advanced", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            // Destination search field
+            OutlinedTextField(
+                value = uiState.trainDestinationQuery,
+                onValueChange = onQueryChange,
+                label = { Text("Station  (e.g. Kalyan, Kurla, CSMT…)") },
+                leadingIcon = { Icon(Icons.Default.Train, null) },
+                trailingIcon = {
+                    if (uiState.trainDestinationQuery.isNotBlank()) {
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(Icons.Default.Clear, "Clear")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            // Start-point row
+            val startLabel = uiState.startNode?.properties?.node_name ?: "Tap the map to set start"
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    startLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (uiState.startNode == null)
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    else
+                        MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Selected train summary chip (shown after train is chosen)
+            if (uiState.selectedTrain != null) {
+                val train = uiState.selectedTrain
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onShowTrains() }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "${train.departureTimeString}  →  ${train.destination}",
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                "${train.type.displayName}  •  Platform ${train.platformAtThane}  •  ${train.trainNumber}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                        Icon(Icons.Default.Edit, "Change train", modifier = Modifier.size(16.dp))
+                    }
+                }
+            } else if (uiState.selectedDestination != null && uiState.availableTrains.isNotEmpty()) {
+                // Destination chosen but no train selected yet
+                OutlinedButton(
+                    onClick = onShowTrains,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Schedule, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Choose a train to ${uiState.selectedDestination}")
+                }
+            }
+
+            // Navigate button
+            Button(
+                onClick = onFindPath,
+                enabled = uiState.startNode != null && uiState.endNode != null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.Navigation, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Navigate to Platform", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Station autocomplete list
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun StationSuggestionList(
+    suggestions: List<String>,
+    onSelect: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
+        )
+    ) {
+        Column {
+            suggestions.forEach { station ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(station) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Train,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(station, style = MaterialTheme.typography.bodyMedium)
+                }
+                if (station != suggestions.last()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        thickness = DividerDefaults.Thickness,
+                        color = DividerDefaults.color
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Train list bottom sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun TrainListSheet(
+    destination: String,
+    trains: List<TrainSchedule>,
+    selectedTrain: TrainSchedule?,
+    onTrainSelect: (TrainSchedule) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+    ) {
+        // Sheet handle area + title
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "Upcoming trains to $destination",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    "Tap a train to set it as your destination",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Default.Close, "Close")
+            }
+        }
+        HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
+
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(trains) { train ->
+                TrainCard(
+                    train = train,
+                    isSelected = train == selectedTrain,
+                    destination = destination,
+                    onClick = { onTrainSelect(train) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TrainCard(
+    train: TrainSchedule,
+    isSelected: Boolean,
+    destination: String,
+    onClick: () -> Unit
+) {
+    val typeColor = Color(train.type.color)
+    val bgColor = if (isSelected)
+        MaterialTheme.colorScheme.primaryContainer
+    else
+        MaterialTheme.colorScheme.surfaceVariant
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        border = if (isSelected) androidx.compose.foundation.BorderStroke(
+            2.dp, MaterialTheme.colorScheme.primary
+        ) else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: time + destination + via
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        train.departureTimeString,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Surface(
+                        color = typeColor.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            train.type.displayName,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = typeColor,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                Text(
+                    train.direction.displayName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (train.via.isNotEmpty()) {
+                    // Highlight the searched destination inside via list
+                    val viaText = train.via.joinToString(" → ")
+                    Text(
+                        "via $viaText",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        fontStyle = FontStyle.Italic
+                    )
+                }
+                Text(
+                    "Train ${train.trainNumber}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+
+            // Right: platform badge
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "PF",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "${train.platformAtThane}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Facilities bottom sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun FacilitiesSheet(
+    facilities: List<FacilityItem>,
+    onFacilitySelect: (FacilityItem) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Station Facilities",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Default.Close, "Close")
+            }
+        }
+        Text(
+            "Tap a facility to navigate there",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        Spacer(Modifier.height(12.dp))
+
+        facilities.forEach { facility ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onFacilitySelect(facility) }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(facility.emoji, style = MaterialTheme.typography.headlineMedium)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(facility.name, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        facility.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            if (facility != facilities.last()) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    thickness = DividerDefaults.Thickness,
+                    color = DividerDefaults.color
+                )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Advanced mode card  (original SearchCard, slightly cleaned up)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun AdvancedSearchCard(
+    modifier: Modifier = Modifier,
+    uiState: MainUiState,
+    onStartNodeSelected: (NodeFeature) -> Unit,
+    onEndNodeSelected: (NodeFeature) -> Unit,
+    onFindPath: () -> Unit,
+    onSearchQueryChanged: (String) -> Unit,
+    onSwitchToSimpleMode: () -> Unit
+) {
+    Card(
+        modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Manual node selection", style = MaterialTheme.typography.titleSmall)
+                TextButton(onClick = onSwitchToSimpleMode) {
+                    Text("← Back", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
             ModernNodeSelector(
                 label = "Start Point",
                 icon = Icons.Default.LocationOn,
@@ -253,48 +753,14 @@ fun SearchCard(
                 iconTint = Color(0xFFF44336)
             )
 
-            // Search input
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = onSearchQueryChanged,
-                label = { Text("Search: Exit, Ticket, Platform...") },
+                label = { Text("Search node…") },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                singleLine = true,
-                textStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Normal),
-                trailingIcon = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        val closest = uiState.searchResults.firstOrNull()
-                        val userLocation = uiState.userGpsLocation
-
-                        if (closest != null && userLocation != null) {
-                            val nodePoint = GeoPoint(
-                                closest.geometry.coordinates[1],
-                                closest.geometry.coordinates[0]
-                            )
-                            val distance = userLocation.distanceToAsDouble(nodePoint).toInt()
-
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        MaterialTheme.colorScheme.primaryContainer,
-                                        RoundedCornerShape(12.dp)
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    "~${distance}m",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                }
+                singleLine = true
             )
 
             Button(
@@ -302,16 +768,75 @@ fun SearchCard(
                 enabled = uiState.startNode != null && uiState.endNode != null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
+                    .height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Navigation, null)
                 Spacer(Modifier.width(8.dp))
-                Text("Find Best Route", fontWeight = FontWeight.Bold)
+                Text("Find Route", fontWeight = FontWeight.Bold)
             }
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Map controls  (added Facilities button)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun MapControls(
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
+    onMyLocationClick: () -> Unit,
+    onSwapNodes: () -> Unit,
+    onFacilities: () -> Unit,
+    showSwap: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        MapControlButton(
+            icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+            onClick = onToggleTheme
+        )
+        MapControlButton(
+            icon = Icons.Default.MedicalServices,  // amenities / facilities
+            onClick = onFacilities
+        )
+        if (showSwap) {
+            MapControlButton(
+                icon = Icons.Default.SwapVert,
+                onClick = onSwapNodes
+            )
+        }
+        MapControlButton(
+            icon = Icons.Default.MyLocation,
+            onClick = onMyLocationClick
+        )
+    }
+}
+
+@Composable
+fun MapControlButton(
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FloatingActionButton(
+        onClick = onClick,
+        modifier = modifier.size(48.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Existing composables kept intact below
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun SearchResultsList(
@@ -353,14 +878,9 @@ fun SearchResultItem(
     onClick: () -> Unit
 ) {
     val distance = userLocation?.let {
-        val nodePoint = GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
-        it.distanceToAsDouble(nodePoint).toInt()
+        val pt = GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
+        it.distanceToAsDouble(pt).toInt()
     }
-
-    val name = node.properties.node_name ?: "Unknown"
-    val type = node.properties.node_type
-    val note = node.properties.note
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -376,26 +896,21 @@ fun SearchResultItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                // 1️⃣ Node name
-                Text(name, fontWeight = FontWeight.SemiBold)
-
-                // 2️⃣ Node type (if available)
-                if (!type.isNullOrBlank()) {
-                    Text(type, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-
-                // 3️⃣ Note (optional)
-                if (!note.isNullOrBlank()) {
+                Text(node.properties.node_name ?: "Unknown", fontWeight = FontWeight.SemiBold)
+                node.properties.node_type?.let {
                     Text(
-                        note,
+                        it,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                node.properties.note?.let {
+                    Text(
+                        it,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         fontStyle = FontStyle.Italic
-
                     )
                 }
             }
-
-            // 4️⃣ Distance (if available)
             distance?.let {
                 Text(
                     "~${it}m",
@@ -408,56 +923,17 @@ fun SearchResultItem(
 }
 
 @Composable
-fun MapControls(
-    isDarkTheme: Boolean,
-    onToggleTheme: () -> Unit,
-    onMyLocationClick: () -> Unit,
-    onSwapNodes: () -> Unit, // Added parameter for swapping
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        MapControlButton(
-            icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-            onClick = onToggleTheme
-        )
-        // New Swap Button added here
-        MapControlButton(
-            icon = Icons.Default.SwapVert,
-            onClick = onSwapNodes
-        )
-        MapControlButton(
-            icon = Icons.Default.MyLocation,
-            onClick = onMyLocationClick
-        )
-    }
-}
-
-@Composable
-fun MapControlButton(icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    FloatingActionButton(
-        onClick = onClick,
-        modifier = modifier.size(48.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-    }
-}
-
-@Composable
 fun LocationPermissionDialog(onGrant: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.LocationOff, null) },
         title = { Text("Location Permission Required") },
         text = { Text("Grant location permission to show your position and navigate.") },
-        confirmButton = { TextButton(onClick = onGrant) { Text("Grant Permission") } },
+        confirmButton = { TextButton(onClick = onGrant) { Text("Grant") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
-
-// Node Selection & Instructions
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModernNodeSelector(
@@ -470,7 +946,6 @@ fun ModernNodeSelector(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
         OutlinedTextField(
             value = selectedNode?.properties?.node_name ?: "",
@@ -480,18 +955,15 @@ fun ModernNodeSelector(
             leadingIcon = { Icon(icon, null, tint = iconTint) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
             modifier = modifier
-                .menuAnchor()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
                 .fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             nodes.forEach { node ->
                 DropdownMenuItem(
-                    text = { Text(node.properties.node_name ?: "Unnamed Node") },
-                    onClick = {
-                        onNodeSelected(node)
-                        expanded = false
-                    },
+                    text = { Text(node.properties.node_name ?: "Unnamed") },
+                    onClick = { onNodeSelected(node); expanded = false },
                     leadingIcon = { Icon(Icons.Default.Place, null, Modifier.size(20.dp)) }
                 )
             }
@@ -512,10 +984,7 @@ fun NodeSelectionDialog(
         title = { Text("Choose Your Starting Point", fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                Text(
-                    "We found these nearby locations. Select one:",
-                    Modifier.padding(bottom = 16.dp)
-                )
+                Text("We found these nearby locations:", Modifier.padding(bottom = 12.dp))
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.heightIn(max = 300.dp)
@@ -544,13 +1013,12 @@ fun NodeSelectionDialog(
                                         Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     userLocation?.let {
-                                        val nodePoint = GeoPoint(
+                                        val pt = GeoPoint(
                                             node.geometry.coordinates[1],
                                             node.geometry.coordinates[0]
                                         )
-                                        val distance = it.distanceToAsDouble(nodePoint).toInt()
                                         Text(
-                                            "~${distance}m",
+                                            "~${it.distanceToAsDouble(pt).toInt()}m",
                                             color = MaterialTheme.colorScheme.primary
                                         )
                                     }
@@ -578,9 +1046,11 @@ fun InstructionsSheet(
     endNode: NodeFeature?,
     onClose: () -> Unit
 ) {
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .padding(bottom = 16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -594,7 +1064,7 @@ fun InstructionsSheet(
             }
             IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close") }
         }
-        Divider()
+        HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
         LazyColumn(
             modifier = Modifier.heightIn(max = 400.dp),
             contentPadding = PaddingValues(16.dp),
