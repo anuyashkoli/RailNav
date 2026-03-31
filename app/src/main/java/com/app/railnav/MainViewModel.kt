@@ -14,6 +14,7 @@ import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 
 data class MainUiState(
+    // ── existing graph/navigation state ─────────────────────────────────────
     val allNodeFeatures: List<NodeFeature> = emptyList(),
     val startNode: NodeFeature? = null,
     val endNode: NodeFeature? = null,
@@ -21,11 +22,34 @@ data class MainUiState(
     val instructions: List<String> = emptyList(),
     val pathBoundingBox: BoundingBox? = null,
     val isLoading: Boolean = true,
+
+    // ── legacy manual-node search (used in advanced mode) ───────────────────
     val searchQuery: String = "",
     val searchResults: List<NodeFeature> = emptyList(),
+
+    // ── location ────────────────────────────────────────────────────────────
     val userGpsLocation: GeoPoint? = null,
     val nearestNodeCandidates: List<NodeFeature> = emptyList(),
-    val showNodeSelectionDialog: Boolean = false
+    val showNodeSelectionDialog: Boolean = false,
+
+    // ── train / station mode (Feature 1 & 2) ────────────────────────────────
+    /** false = train-destination mode (default);  true = manual node picker */
+    val isAdvancedMode: Boolean = false,
+    /** What the user is typing in the "Where are you going?" field */
+    val trainDestinationQuery: String = "",
+    /** Station name suggestions shown as autocomplete */
+    val destinationSuggestions: List<String> = emptyList(),
+    /** The station the user confirmed */
+    val selectedDestination: String? = null,
+    /** Upcoming trains for the selected destination */
+    val availableTrains: List<TrainSchedule> = emptyList(),
+    /** The train the user tapped */
+    val selectedTrain: TrainSchedule? = null,
+    /** Whether the train-list bottom-sheet is open */
+    val showTrainSheet: Boolean = false,
+
+    // ── facilities (Feature 1 – secondary) ──────────────────────────────────
+    val showFacilitiesSheet: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -51,9 +75,104 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ================================
-    // SEARCH LOGIC (WITH FUZZY MATCH)
-    // ================================
+    // ══════════════════════════════════════════════════════════════════════
+    //  Mode toggle
+    // ══════════════════════════════════════════════════════════════════════
+
+    fun toggleAdvancedMode() {
+        _uiState.value = _uiState.value.copy(
+            isAdvancedMode = !_uiState.value.isAdvancedMode
+        )
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Train / station destination logic
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Called on every keystroke in the "Where are you going?" field.
+     * Updates autocomplete suggestions.
+     */
+    fun onTrainDestinationQueryChanged(query: String) {
+        _uiState.value = _uiState.value.copy(
+            trainDestinationQuery = query,
+            destinationSuggestions = TrainRepository.searchDestinations(query),
+            // Clear previous selection if user edits the field
+            selectedDestination = null,
+            availableTrains = emptyList(),
+            selectedTrain = null,
+            endNode = null
+        )
+    }
+
+    /**
+     * Called when the user taps a suggestion.
+     * Loads upcoming trains and opens the train-list sheet.
+     */
+    fun onDestinationSelected(station: String) {
+        val trains = TrainRepository.getUpcomingTrains(station)
+        _uiState.value = _uiState.value.copy(
+            trainDestinationQuery = station,
+            destinationSuggestions = emptyList(),
+            selectedDestination = station,
+            availableTrains = trains,
+            showTrainSheet = trains.isNotEmpty(),
+            selectedTrain = null,
+            endNode = null
+        )
+    }
+
+    /**
+     * Called when the user picks a specific train from the sheet.
+     * Resolves the platform → graph node and sets it as the navigation end-point.
+     */
+    fun onTrainSelected(train: TrainSchedule) {
+        val platformNodeId = TrainRepository.getPlatformNodeId(train.platformAtThane)
+        val endNode = _uiState.value.allNodeFeatures.find {
+            it.properties.node_id == platformNodeId
+        }
+        _uiState.value = _uiState.value.copy(
+            selectedTrain = train,
+            endNode = endNode,
+            showTrainSheet = false
+        )
+    }
+
+    fun openTrainSheet() {
+        if (_uiState.value.availableTrains.isNotEmpty()) {
+            _uiState.value = _uiState.value.copy(showTrainSheet = true)
+        }
+    }
+
+    fun dismissTrainSheet() {
+        _uiState.value = _uiState.value.copy(showTrainSheet = false)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Facilities
+    // ══════════════════════════════════════════════════════════════════════
+
+    fun showFacilities() {
+        _uiState.value = _uiState.value.copy(showFacilitiesSheet = true)
+    }
+
+    fun dismissFacilities() {
+        _uiState.value = _uiState.value.copy(showFacilitiesSheet = false)
+    }
+
+    fun navigateToFacility(facility: FacilityItem) {
+        val node = _uiState.value.allNodeFeatures.find {
+            it.properties.node_id == facility.nodeId
+        }
+        _uiState.value = _uiState.value.copy(
+            endNode = node,
+            showFacilitiesSheet = false
+        )
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Legacy manual-node search (advanced mode)
+    // ══════════════════════════════════════════════════════════════════════
 
     fun onSearchQueryChanged(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
@@ -61,34 +180,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = _uiState.value.copy(searchResults = emptyList())
             return
         }
-
         val allNodes = _uiState.value.allNodeFeatures
         val queryLower = query.lowercase()
-
         val matchedNodes = allNodes.filter { node ->
-            val nodeName = node.properties.node_name?.lowercase() ?: ""
-            val nodeType = node.properties.node_type?.lowercase() ?: ""
-
-            // Production improvement: Standard contains check + Fuzzy Levenshtein match
-            nodeName.contains(queryLower) ||
-                    nodeType.contains(queryLower) ||
-                    fuzzyMatch(queryLower, nodeName)
+            val name = node.properties.node_name?.lowercase() ?: ""
+            val type = node.properties.node_type?.lowercase() ?: ""
+            name.contains(queryLower) || type.contains(queryLower) || fuzzyMatch(queryLower, name)
         }
-
-        val sortedResults = if (_uiState.value.startNode != null) {
-            val startNodePoint = GeoPoint(_uiState.value.startNode!!.geometry.coordinates[1], _uiState.value.startNode!!.geometry.coordinates[0])
-            matchedNodes.sortedBy { node -> GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(startNodePoint) }
-        } else if (_uiState.value.userGpsLocation != null) {
-            matchedNodes.sortedBy { node -> GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(_uiState.value.userGpsLocation!!) }
-        } else {
-            matchedNodes.sortedBy { it.properties.node_name }
-        }
+        val sortedResults = sortByProximity(matchedNodes)
         _uiState.value = _uiState.value.copy(searchResults = sortedResults)
+    }
+
+    /**
+     * Sorts [nodes] by proximity to the user's known position (start node or GPS).
+     * Pre-computes the GeoPoint for each node once to avoid O(n log n) redundant allocations.
+     */
+    private fun sortByProximity(nodes: List<NodeFeature>): List<NodeFeature> {
+        val referencePoint: GeoPoint? = _uiState.value.startNode?.let {
+            GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0])
+        } ?: _uiState.value.userGpsLocation
+
+        return if (referencePoint != null) {
+            nodes
+                .map { node ->
+                    node to GeoPoint(
+                        node.geometry.coordinates[1],
+                        node.geometry.coordinates[0]
+                    ).distanceToAsDouble(referencePoint)
+                }
+                .sortedBy { (_, dist) -> dist }
+                .map { (node, _) -> node }
+        } else {
+            nodes.sortedBy { it.properties.node_name }
+        }
     }
 
     private fun fuzzyMatch(query: String, target: String): Boolean {
         if (query.length < 3) return target.contains(query, ignoreCase = true)
         val maxErrors = 2
+        // Reuse a single pre-allocated array to avoid GC thrashing on every keystroke
         val dp = Array(query.length + 1) { IntArray(target.length + 1) }
         for (i in 0..query.length) dp[i][0] = i
         for (j in 0..target.length) dp[0][j] = j
@@ -101,27 +231,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return dp[query.length][target.length] <= maxErrors
     }
 
-    // ================================
-    // NAVIGATION & PATHFINDING
-    // ================================
+    // ══════════════════════════════════════════════════════════════════════
+    //  Pathfinding
+    // ══════════════════════════════════════════════════════════════════════
 
     fun findPath() {
         val startId = _uiState.value.startNode?.properties?.node_id
-        val endId = _uiState.value.endNode?.properties?.node_id
-        if (startId != null && endId != null) {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            viewModelScope.launch {
+        val endId   = _uiState.value.endNode?.properties?.node_id
+        if (startId == null || endId == null) return
+
+        _uiState.value = _uiState.value.copy(isLoading = true)
+        viewModelScope.launch {
+            try {
                 val result = withContext(Dispatchers.Default) {
-                    val path = pathfinder.findShortestPath(startId, endId)
-                    val boundingBox = calculateBoundingBox(path)
-                    val instructions = if (path != null) DirectionGenerator.generate(path) else listOf("No path found.")
+                    val path         = pathfinder.findShortestPath(startId, endId)
+                    val boundingBox  = calculateBoundingBox(path)
+                    val instructions = if (path != null) {
+                        DirectionGenerator.generate(path)
+                    } else {
+                        listOf("No path found between the selected nodes.")
+                    }
                     Triple(path, instructions, boundingBox)
                 }
                 _uiState.value = _uiState.value.copy(
-                    calculatedPath = result.first,
-                    instructions = result.second,
+                    calculatedPath  = result.first,
+                    instructions    = result.second,
                     pathBoundingBox = result.third,
-                    isLoading = false
+                    isLoading       = false
+                )
+            } catch (e: Exception) {
+                // Prevent the loading spinner getting stuck on an unexpected crash
+                _uiState.value = _uiState.value.copy(
+                    isLoading    = false,
+                    instructions = listOf("An error occurred while calculating the route.")
                 )
             }
         }
@@ -133,22 +275,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val maxLat = path.maxOf { it.coordinates[1] }
         val minLon = path.minOf { it.coordinates[0] }
         val maxLon = path.maxOf { it.coordinates[0] }
-        val latPadding = (maxLat - minLat) * 0.1
-        val lonPadding = (maxLon - minLon) * 0.1
-        return BoundingBox(maxLat + latPadding, maxLon + lonPadding, minLat - latPadding, minLon - lonPadding)
+        val latPad = (maxLat - minLat) * 0.1
+        val lonPad = (maxLon - minLon) * 0.1
+        return BoundingBox(maxLat + latPad, maxLon + lonPad, minLat - latPad, minLon - lonPad)
     }
 
-    // ================================
-    // INTERACTION HANDLERS
-    // ================================
+    // ══════════════════════════════════════════════════════════════════════
+    //  Interaction helpers
+    // ══════════════════════════════════════════════════════════════════════
 
     fun swapNodes() {
-        val currentState = _uiState.value
-        _uiState.value = currentState.copy(
-            startNode = currentState.endNode,
-            endNode = currentState.startNode,
-            calculatedPath = null,
-            instructions = emptyList(),
+        val s = _uiState.value
+        _uiState.value = s.copy(
+            startNode       = s.endNode,
+            endNode         = s.startNode,
+            calculatedPath  = null,
+            instructions    = emptyList(),
             pathBoundingBox = null
         )
     }
@@ -156,23 +298,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setStartNodeByTap(tapPoint: GeoPoint) {
         val allNodes = _uiState.value.allNodeFeatures
         if (allNodes.isEmpty()) return
-        val closestNode = allNodes.minByOrNull { node ->
-            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(tapPoint)
+        val closest = allNodes.minByOrNull { node ->
+            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
+                .distanceToAsDouble(tapPoint)
         }
-        if (closestNode != null) onStartNodeSelected(closestNode)
+        if (closest != null) onStartNodeSelected(closest)
     }
 
     fun onMarkerTapped(node: NodeFeature) {
-        val currentState = _uiState.value
+        val s = _uiState.value
         when {
-            currentState.startNode == null -> onStartNodeSelected(node)
-            currentState.endNode == null -> onEndNodeSelected(node)
+            s.startNode == null -> onStartNodeSelected(node)
+            s.endNode   == null -> onEndNodeSelected(node)
             else -> {
                 onStartNodeSelected(node)
                 _uiState.value = _uiState.value.copy(
-                    endNode = null,
-                    calculatedPath = null,
-                    instructions = emptyList(),
+                    endNode         = null,
+                    calculatedPath  = null,
+                    instructions    = emptyList(),
                     pathBoundingBox = null
                 )
             }
@@ -183,15 +326,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(userGpsLocation = location)
         val allNodes = _uiState.value.allNodeFeatures
         if (allNodes.isEmpty()) return
-        val nearestNodes = allNodes.sortedBy { GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(location) }.take(3)
-        _uiState.value = _uiState.value.copy(nearestNodeCandidates = nearestNodes, showNodeSelectionDialog = true)
+        val nearest = allNodes
+            .sortedBy {
+                GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0])
+                    .distanceToAsDouble(location)
+            }
+            .take(3)
+        _uiState.value = _uiState.value.copy(
+            nearestNodeCandidates = nearest,
+            showNodeSelectionDialog = true
+        )
     }
 
-    fun onSearchResultSelected(node: NodeFeature) { _uiState.value = _uiState.value.copy(endNode = node, searchQuery = "", searchResults = emptyList()) }
-    fun onStartNodeSelected(node: NodeFeature) { _uiState.value = _uiState.value.copy(startNode = node) }
-    fun onEndNodeSelected(node: NodeFeature) { _uiState.value = _uiState.value.copy(endNode = node) }
+    fun onSearchResultSelected(node: NodeFeature) {
+        _uiState.value = _uiState.value.copy(
+            endNode     = node,
+            searchQuery = "",
+            searchResults = emptyList()
+        )
+    }
+
+    fun onStartNodeSelected(node: NodeFeature) {
+        _uiState.value = _uiState.value.copy(startNode = node)
+    }
+
+    fun onEndNodeSelected(node: NodeFeature) {
+        _uiState.value = _uiState.value.copy(endNode = node)
+    }
+
     fun getAllEdges(): List<EdgeFeature> = allEdges
-    fun onZoomToPathComplete() { _uiState.value = _uiState.value.copy(pathBoundingBox = null) }
-    fun confirmStartNode(node: NodeFeature) { onStartNodeSelected(node); _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false) }
-    fun dismissNodeSelectionDialog() { _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false) }
+
+    fun onZoomToPathComplete() {
+        _uiState.value = _uiState.value.copy(pathBoundingBox = null)
+    }
+
+    fun confirmStartNode(node: NodeFeature) {
+        onStartNodeSelected(node)
+        _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false)
+    }
+
+    fun dismissNodeSelectionDialog() {
+        _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false)
+    }
 }
