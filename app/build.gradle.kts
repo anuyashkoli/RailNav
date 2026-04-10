@@ -85,4 +85,7 @@ dependencies {
     implementation(libs.retrofit.converter.kotlinx)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+
+    // OSMDroid Bonus Pack for Clustering
+    implementation("com.github.MKergall:osmbonuspack:6.9.0")
 }
