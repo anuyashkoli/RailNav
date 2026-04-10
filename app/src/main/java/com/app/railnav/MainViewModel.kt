@@ -368,4 +368,61 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissNodeSelectionDialog() {
         _uiState.value = _uiState.value.copy(showNodeSelectionDialog = false)
     }
+
+    // ================================
+    // FACILITY QUICK CHIPS LOGIC
+    // ================================
+
+    fun routeToNearestFacility(keyword: String) {
+        val currentState = _uiState.value
+
+        // Use GPS location if available; otherwise, use the selected start node
+        val referenceLocation = currentState.userGpsLocation
+            ?: currentState.startNode?.let { GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]) }
+
+        if (referenceLocation == null) {
+            // Need a reference point to find the "nearest".
+            // In a real app, you might show a Toast here asking the user to wait for GPS or pick a start point.
+            return
+        }
+
+        val allNodes = currentState.allNodeFeatures
+        val queryLower = keyword.lowercase()
+
+        // 1. Find all nodes that match the keyword in their name or type
+        val matchedNodes = allNodes.filter { node ->
+            val nodeName = node.properties.node_name?.lowercase() ?: ""
+            val nodeType = node.properties.node_type?.lowercase() ?: ""
+            nodeName.contains(queryLower) || nodeType.contains(queryLower)
+        }
+
+        if (matchedNodes.isEmpty()) return
+
+        // 2. Find the one closest to the reference location
+        val closestNode = matchedNodes.minByOrNull { node ->
+            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(referenceLocation)
+        }
+
+        // 3. Set it as destination and route!
+        if (closestNode != null) {
+            // Auto-set the start node to the user's nearest GPS node if it's currently empty
+            var finalStartNode = currentState.startNode
+            if (finalStartNode == null && currentState.userGpsLocation != null) {
+                finalStartNode = allNodes.minByOrNull {
+                    GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(currentState.userGpsLocation)
+                }
+            }
+
+            _uiState.value = currentState.copy(
+                startNode = finalStartNode,
+                endNode = closestNode,
+                searchQuery = "", // Clear search bar if they used chips
+                searchResults = emptyList()
+            )
+
+            if (finalStartNode != null) {
+                findPath()
+            }
+        }
+    }
 }

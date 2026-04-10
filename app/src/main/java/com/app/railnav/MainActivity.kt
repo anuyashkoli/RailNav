@@ -11,14 +11,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp // FIX: AutoMirrored icon
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +65,6 @@ fun PathfindingScreen(
     val context = LocalContext.current
     val locationHandler = remember {
         LocationHandler(
-            // FIX: pass applicationContext to avoid Activity context leak
             context = context.applicationContext,
             onLocationReceived = { mainViewModel.onLocationReceived(it) },
             onPermissionDenied = { showPermissionDialog = true }
@@ -107,14 +107,11 @@ fun PathfindingScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
                 ) {
                     if (uiState.isAdvancedMode) {
-                        // ── Legacy manual node picker ──────────────────────
                         AdvancedSearchCard(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             uiState = uiState,
                             onStartNodeSelected = { mainViewModel.onStartNodeSelected(it) },
                             onEndNodeSelected = { mainViewModel.onEndNodeSelected(it) },
@@ -126,12 +123,11 @@ fun PathfindingScreen(
                             onSwitchToSimpleMode = { mainViewModel.toggleAdvancedMode() }
                         )
                     } else {
-                        // ── Train destination picker (default) ─────────────
+                        // FIX: Removed unused onSuggestionSelect parameter
                         TrainDestinationCard(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             uiState = uiState,
                             onQueryChange = { mainViewModel.onTrainDestinationQueryChanged(it) },
-                            onSuggestionSelect = { mainViewModel.onDestinationSelected(it) },
                             onShowTrains = { mainViewModel.openTrainSheet() },
                             onFindPath = {
                                 mainViewModel.findPath()
@@ -141,22 +137,28 @@ fun PathfindingScreen(
                         )
                     }
 
-                    // Autocomplete suggestions (train mode only)
+                    Spacer(Modifier.height(8.dp))
+
+                    FacilityQuickChips(
+                        onChipSelected = { keyword ->
+                            mainViewModel.routeToNearestFacility(keyword)
+                        }
+                    )
+
                     if (!uiState.isAdvancedMode && uiState.destinationSuggestions.isNotEmpty()) {
-                        Spacer(Modifier.height(4.dp))
                         StationSuggestionList(
                             suggestions = uiState.destinationSuggestions,
-                            onSelect = { mainViewModel.onDestinationSelected(it) }
+                            onSelect = { mainViewModel.onDestinationSelected(it) },
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
 
-                    // Legacy search results (advanced mode)
                     if (uiState.isAdvancedMode && uiState.searchResults.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
                         SearchResultsList(
                             results = uiState.searchResults,
                             userLocation = uiState.userGpsLocation,
-                            onSelect = { mainViewModel.onSearchResultSelected(it) }
+                            onSelect = { mainViewModel.onSearchResultSelected(it) },
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
                 }
@@ -270,7 +272,44 @@ fun PathfindingScreen(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Train destination card  (the new default top card)
+//  Facility Quick Chips
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FacilityQuickChips(onChipSelected: (String) -> Unit) {
+    val facilities = listOf(
+        Pair("Ticket", Icons.Default.ConfirmationNumber),
+        Pair("Exit", Icons.AutoMirrored.Filled.ExitToApp), // FIX: AutoMirrored Icon
+        Pair("Platform", Icons.Default.Train),
+        Pair("Stairs", Icons.Default.Stairs)
+    )
+
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        // FIX: Explicitly defined padding for all 4 sides instead of missing 'horizontal'
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(facilities) { (name, icon) ->
+            ElevatedFilterChip(
+                selected = false,
+                onClick = { onChipSelected(name) },
+                label = { Text(name, fontWeight = FontWeight.Bold) },
+                leadingIcon = { Icon(icon, contentDescription = name, modifier = Modifier.size(18.dp)) },
+                colors = FilterChipDefaults.elevatedFilterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    labelColor = MaterialTheme.colorScheme.primary,
+                    iconColor = MaterialTheme.colorScheme.primary
+                ),
+                elevation = FilterChipDefaults.filterChipElevation(elevation = 4.dp)
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Train destination card
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -278,7 +317,6 @@ fun TrainDestinationCard(
     modifier: Modifier = Modifier,
     uiState: MainUiState,
     onQueryChange: (String) -> Unit,
-    onSuggestionSelect: (String) -> Unit,
     onShowTrains: () -> Unit,
     onFindPath: () -> Unit,
     onSwitchToAdvancedMode: () -> Unit
@@ -294,7 +332,6 @@ fun TrainDestinationCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -310,7 +347,6 @@ fun TrainDestinationCard(
                 }
             }
 
-            // Destination search field
             OutlinedTextField(
                 value = uiState.trainDestinationQuery,
                 onValueChange = onQueryChange,
@@ -328,7 +364,6 @@ fun TrainDestinationCard(
                 singleLine = true
             )
 
-            // Start-point row
             val startLabel = uiState.startNode?.properties?.node_name ?: "Tap the map to set start"
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -350,7 +385,6 @@ fun TrainDestinationCard(
                 )
             }
 
-            // Selected train summary chip (shown after train is chosen)
             if (uiState.selectedTrain != null) {
                 val train = uiState.selectedTrain
                 Surface(
@@ -383,7 +417,6 @@ fun TrainDestinationCard(
                     }
                 }
             } else if (uiState.selectedDestination != null && uiState.availableTrains.isNotEmpty()) {
-                // Destination chosen but no train selected yet
                 OutlinedButton(
                     onClick = onShowTrains,
                     modifier = Modifier.fillMaxWidth(),
@@ -395,7 +428,6 @@ fun TrainDestinationCard(
                 }
             }
 
-            // Navigate button
             Button(
                 onClick = onFindPath,
                 enabled = uiState.startNode != null && uiState.endNode != null,
@@ -419,10 +451,11 @@ fun TrainDestinationCard(
 @Composable
 fun StationSuggestionList(
     suggestions: List<String>,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .shadow(4.dp, RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
@@ -477,7 +510,6 @@ fun TrainListSheet(
             .fillMaxWidth()
             .padding(bottom = 16.dp)
     ) {
-        // Sheet handle area + title
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -508,10 +540,10 @@ fun TrainListSheet(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(trains) { train ->
+                // FIX: Removed unused destination parameter
                 TrainCard(
                     train = train,
                     isSelected = train == selectedTrain,
-                    destination = destination,
                     onClick = { onTrainSelect(train) }
                 )
             }
@@ -523,7 +555,6 @@ fun TrainListSheet(
 fun TrainCard(
     train: TrainSchedule,
     isSelected: Boolean,
-    destination: String,
     onClick: () -> Unit
 ) {
     val typeColor = Color(train.type.color)
@@ -549,7 +580,6 @@ fun TrainCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: time + destination + via
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -579,7 +609,6 @@ fun TrainCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (train.via.isNotEmpty()) {
-                    // Highlight the searched destination inside via list
                     val viaText = train.via.joinToString(" → ")
                     Text(
                         "via $viaText",
@@ -595,7 +624,6 @@ fun TrainCard(
                 )
             }
 
-            // Right: platform badge
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -701,7 +729,7 @@ fun FacilitiesSheet(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Advanced mode card  (original SearchCard, slightly cleaned up)
+//  Advanced mode card
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -780,7 +808,7 @@ fun AdvancedSearchCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Map controls  (added Facilities button)
+//  Map controls
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -802,7 +830,7 @@ fun MapControls(
             onClick = onToggleTheme
         )
         MapControlButton(
-            icon = Icons.Default.MedicalServices,  // amenities / facilities
+            icon = Icons.Default.MedicalServices,
             onClick = onFacilities
         )
         if (showSwap) {
@@ -842,10 +870,11 @@ fun MapControlButton(
 fun SearchResultsList(
     results: List<NodeFeature>,
     userLocation: GeoPoint?,
-    onSelect: (NodeFeature) -> Unit
+    onSelect: (NodeFeature) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .shadow(8.dp, RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
