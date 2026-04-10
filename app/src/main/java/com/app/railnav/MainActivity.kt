@@ -164,19 +164,27 @@ fun PathfindingScreen(
                 }
             }
 
-            // ── Side controls ──────────────────────────────────────────────
+            // ---------------- Map Controls ----------------
             MapControls(
                 isDarkTheme = isDarkTheme,
                 onToggleTheme = { isDarkTheme = !isDarkTheme },
                 onMyLocationClick = {
-                    if (locationHandler.hasLocationPermission())
-                        locationHandler.startLocationUpdates()
-                    else
+                    if (locationHandler.hasLocationPermission()) {
+                        if (locationHandler.isLocationEnabled()) {
+                            // Permission is granted AND GPS is turned on
+                            locationHandler.startLocationUpdates()
+                        } else {
+                            // GPS is turned off. Launch Android Settings!
+                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }
+                    } else {
+                        // Permission not granted, ask for it using the correct launcher name
                         permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    }
                 },
                 onSwapNodes = { mainViewModel.swapNodes() },
-                onFacilities = { mainViewModel.showFacilities() },
-                showSwap = uiState.isAdvancedMode,
+                onFacilities = { mainViewModel.showFacilities() }, // FIX: Added missing parameter
+                showSwap = uiState.isAdvancedMode,                 // FIX: Added missing parameter
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp)

@@ -324,15 +324,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onLocationReceived(location: GeoPoint) {
         _uiState.value = _uiState.value.copy(userGpsLocation = location)
-        val allNodes = _uiState.value.allNodeFeatures
+
+        val currentState = _uiState.value
+
+        // IMPORTANT: If the user has already selected a start node OR a path is currently
+        // drawn on the map, DO NOT show the dialog again. Just let the GPS dot move.
+        if (currentState.startNode != null || currentState.calculatedPath != null) {
+            return
+        }
+
+        val allNodes = currentState.allNodeFeatures
         if (allNodes.isEmpty()) return
+
         val nearest = allNodes
             .sortedBy {
                 GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0])
                     .distanceToAsDouble(location)
             }
             .take(3)
-        _uiState.value = _uiState.value.copy(
+
+        _uiState.value = currentState.copy(
             nearestNodeCandidates = nearest,
             showNodeSelectionDialog = true
         )
