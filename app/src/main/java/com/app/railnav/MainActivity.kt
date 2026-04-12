@@ -3,6 +3,7 @@ package com.app.railnav
 import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,7 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ExitToApp // FIX: AutoMirrored icon
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -82,6 +83,12 @@ fun PathfindingScreen(
         if (uiState.instructions.isNotEmpty()) showInstructions = true
     }
 
+    // FIX: Added the BackHandler to intercept the back button and clear the route map!
+    BackHandler(enabled = uiState.calculatedPath != null) {
+        mainViewModel.clearRoute()
+        showInstructions = false
+    }
+
     RailNavTheme(darkTheme = isDarkTheme) {
         Box(modifier = modifier.fillMaxSize()) {
 
@@ -120,10 +127,12 @@ fun PathfindingScreen(
                                 scope.launch { showInstructions = true }
                             },
                             onSearchQueryChanged = { mainViewModel.onSearchQueryChanged(it) },
-                            onSwitchToSimpleMode = { mainViewModel.toggleAdvancedMode() }
+                            onSwitchToSimpleMode = { mainViewModel.toggleAdvancedMode() },
+                            // FIX: Passing the viewmodel calls as lambdas to resolve Unresolved References!
+                            onClearStartNode = { mainViewModel.clearStartNode() },
+                            onClearEndNode = { mainViewModel.clearEndNode() }
                         )
                     } else {
-                        // FIX: Removed unused onSuggestionSelect parameter
                         TrainDestinationCard(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             uiState = uiState,
@@ -133,7 +142,8 @@ fun PathfindingScreen(
                                 mainViewModel.findPath()
                                 scope.launch { showInstructions = true }
                             },
-                            onSwitchToAdvancedMode = { mainViewModel.toggleAdvancedMode() }
+                            onSwitchToAdvancedMode = { mainViewModel.toggleAdvancedMode() },
+                            onClearStartNode = { mainViewModel.clearStartNode() }
                         )
                     }
 
@@ -171,20 +181,18 @@ fun PathfindingScreen(
                 onMyLocationClick = {
                     if (locationHandler.hasLocationPermission()) {
                         if (locationHandler.isLocationEnabled()) {
-                            // Permission is granted AND GPS is turned on
+                            mainViewModel.onGpsButtonClicked()
                             locationHandler.startLocationUpdates()
                         } else {
-                            // GPS is turned off. Launch Android Settings!
                             context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                         }
                     } else {
-                        // Permission not granted, ask for it using the correct launcher name
                         permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     }
                 },
                 onSwapNodes = { mainViewModel.swapNodes() },
-                onFacilities = { mainViewModel.showFacilities() }, // FIX: Added missing parameter
-                showSwap = uiState.isAdvancedMode,                 // FIX: Added missing parameter
+                onFacilities = { mainViewModel.showFacilities() },
+                showSwap = uiState.isAdvancedMode,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp)
@@ -288,14 +296,13 @@ fun PathfindingScreen(
 fun FacilityQuickChips(onChipSelected: (String) -> Unit) {
     val facilities = listOf(
         Pair("Ticket", Icons.Default.ConfirmationNumber),
-        Pair("Exit", Icons.AutoMirrored.Filled.ExitToApp), // FIX: AutoMirrored Icon
+        Pair("Exit", Icons.AutoMirrored.Filled.ExitToApp),
         Pair("Platform", Icons.Default.Train),
         Pair("Stairs", Icons.Default.Stairs)
     )
 
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        // FIX: Explicitly defined padding for all 4 sides instead of missing 'horizontal'
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 8.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -327,14 +334,13 @@ fun TrainDestinationCard(
     onQueryChange: (String) -> Unit,
     onShowTrains: () -> Unit,
     onFindPath: () -> Unit,
-    onSwitchToAdvancedMode: () -> Unit
+    onSwitchToAdvancedMode: () -> Unit,
+    onClearStartNode: () -> Unit
 ) {
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -345,14 +351,8 @@ fun TrainDestinationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "🚆  Where are you going?",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                TextButton(onClick = onSwitchToAdvancedMode) {
-                    Text("Advanced", style = MaterialTheme.typography.labelSmall)
-                }
+                Text("🚆  Where are you going?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                TextButton(onClick = onSwitchToAdvancedMode) { Text("Advanced", style = MaterialTheme.typography.labelSmall) }
             }
 
             OutlinedTextField(
@@ -362,9 +362,7 @@ fun TrainDestinationCard(
                 leadingIcon = { Icon(Icons.Default.Train, null) },
                 trailingIcon = {
                     if (uiState.trainDestinationQuery.isNotBlank()) {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(Icons.Default.Clear, "Clear")
-                        }
+                        IconButton(onClick = { onQueryChange("") }) { Icon(Icons.Default.Clear, "Clear") }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -372,25 +370,25 @@ fun TrainDestinationCard(
                 singleLine = true
             )
 
-            val startLabel = uiState.startNode?.properties?.node_name ?: "Tap the map to set start"
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint = Color(0xFF4CAF50),
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    startLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (uiState.startNode == null)
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    else
-                        MaterialTheme.colorScheme.onSurface
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+                    Text(
+                        uiState.startNode?.properties?.node_name ?: "Tap the map to set start",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (uiState.startNode == null) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                if (uiState.startNode != null) {
+                    IconButton(onClick = onClearStartNode, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Clear, "Clear Start Node", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
 
             if (uiState.selectedTrain != null) {
@@ -548,7 +546,6 @@ fun TrainListSheet(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(trains) { train ->
-                // FIX: Removed unused destination parameter
                 TrainCard(
                     train = train,
                     isSelected = train == selectedTrain,
@@ -748,7 +745,9 @@ fun AdvancedSearchCard(
     onEndNodeSelected: (NodeFeature) -> Unit,
     onFindPath: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
-    onSwitchToSimpleMode: () -> Unit
+    onSwitchToSimpleMode: () -> Unit,
+    onClearStartNode: () -> Unit, // FIX: Added missing parameter
+    onClearEndNode: () -> Unit    // FIX: Added missing parameter
 ) {
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
@@ -778,6 +777,7 @@ fun AdvancedSearchCard(
                 nodes = uiState.allNodeFeatures,
                 selectedNode = uiState.startNode,
                 onNodeSelected = onStartNodeSelected,
+                onClearSelection = onClearStartNode, // FIX: Uses parameter cleanly
                 iconTint = Color(0xFF4CAF50)
             )
             ModernNodeSelector(
@@ -786,6 +786,7 @@ fun AdvancedSearchCard(
                 nodes = uiState.allNodeFeatures,
                 selectedNode = uiState.endNode,
                 onNodeSelected = onEndNodeSelected,
+                onClearSelection = onClearEndNode, // FIX: Uses parameter cleanly
                 iconTint = Color(0xFFF44336)
             )
 
@@ -979,6 +980,7 @@ fun ModernNodeSelector(
     nodes: List<NodeFeature>,
     selectedNode: NodeFeature?,
     onNodeSelected: (NodeFeature) -> Unit,
+    onClearSelection: () -> Unit,
     iconTint: Color,
     modifier: Modifier = Modifier
 ) {
@@ -990,7 +992,15 @@ fun ModernNodeSelector(
             readOnly = true,
             label = { Text(label) },
             leadingIcon = { Icon(icon, null, tint = iconTint) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            trailingIcon = {
+                if (selectedNode != null) {
+                    IconButton(onClick = onClearSelection) {
+                        Icon(Icons.Default.Clear, "Clear Selection", tint = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+                }
+            },
             modifier = modifier
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
                 .fillMaxWidth(),

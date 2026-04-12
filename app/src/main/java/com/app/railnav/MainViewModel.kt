@@ -57,6 +57,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
+    private var forceNextLocationPrompt = false
+
     private val graph = Graph()
     private lateinit var pathfinder: Pathfinder
     private var allEdges: List<EdgeFeature> = emptyList()
@@ -89,15 +91,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     //  Train / station destination logic
     // ══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Called on every keystroke in the "Where are you going?" field.
-     * Updates autocomplete suggestions.
-     */
     fun onTrainDestinationQueryChanged(query: String) {
         _uiState.value = _uiState.value.copy(
             trainDestinationQuery = query,
             destinationSuggestions = TrainRepository.searchDestinations(query),
-            // Clear previous selection if user edits the field
             selectedDestination = null,
             availableTrains = emptyList(),
             selectedTrain = null,
@@ -105,10 +102,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /**
-     * Called when the user taps a suggestion.
-     * Loads upcoming trains and opens the train-list sheet.
-     */
     fun onDestinationSelected(station: String) {
         val trains = TrainRepository.getUpcomingTrains(station)
         _uiState.value = _uiState.value.copy(
@@ -122,10 +115,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /**
-     * Called when the user picks a specific train from the sheet.
-     * Resolves the platform → graph node and sets it as the navigation end-point.
-     */
     fun onTrainSelected(train: TrainSchedule) {
         val platformNodeId = TrainRepository.getPlatformNodeId(train.platformAtThane)
         val endNode = _uiState.value.allNodeFeatures.find {
@@ -191,10 +180,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(searchResults = sortedResults)
     }
 
-    /**
-     * Sorts [nodes] by proximity to the user's known position (start node or GPS).
-     * Pre-computes the GeoPoint for each node once to avoid O(n log n) redundant allocations.
-     */
     private fun sortByProximity(nodes: List<NodeFeature>): List<NodeFeature> {
         val referencePoint: GeoPoint? = _uiState.value.startNode?.let {
             GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0])
@@ -218,7 +203,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun fuzzyMatch(query: String, target: String): Boolean {
         if (query.length < 3) return target.contains(query, ignoreCase = true)
         val maxErrors = 2
-        // Reuse a single pre-allocated array to avoid GC thrashing on every keystroke
         val dp = Array(query.length + 1) { IntArray(target.length + 1) }
         for (i in 0..query.length) dp[i][0] = i
         for (j in 0..target.length) dp[0][j] = j
@@ -259,8 +243,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     pathBoundingBox = result.third,
                     isLoading       = false
                 )
-            } catch (e: Exception) {
-                // Prevent the loading spinner getting stuck on an unexpected crash
+            } catch (_: Exception) { // FIX: Removed unused 'e' parameter
                 _uiState.value = _uiState.value.copy(
                     isLoading    = false,
                     instructions = listOf("An error occurred while calculating the route.")
@@ -327,19 +310,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val currentState = _uiState.value
 
-        // IMPORTANT: If the user has already selected a start node OR a path is currently
-        // drawn on the map, DO NOT show the dialog again. Just let the GPS dot move.
-        if (currentState.startNode != null || currentState.calculatedPath != null) {
+        // If user didn't explicitly click the GPS button, and a node/path exists, stay quiet.
+        if (!forceNextLocationPrompt && (currentState.startNode != null || currentState.calculatedPath != null)) {
             return
         }
+
+        // Reset the flag since we are about to show the dialog
+        forceNextLocationPrompt = false
 
         val allNodes = currentState.allNodeFeatures
         if (allNodes.isEmpty()) return
 
         val nearest = allNodes
             .sortedBy {
-                GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0])
-                    .distanceToAsDouble(location)
+                GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(location)
             }
             .take(3)
 
@@ -347,6 +331,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             nearestNodeCandidates = nearest,
             showNodeSelectionDialog = true
         )
+    }
+
+    fun onGpsButtonClicked() {
+        forceNextLocationPrompt = true
+        // If we already have a location cached, trigger the dialog immediately
+        _uiState.value.userGpsLocation?.let { onLocationReceived(it) }
+    }
+
+    fun clearRoute() {
+        _uiState.value = _uiState.value.copy(
+            calculatedPath = null,
+            instructions = emptyList(),
+            pathBoundingBox = null,
+            startNode = null,
+            endNode = null,
+            selectedTrain = null,
+            selectedDestination = null
+        )
+    }
+
+    fun clearStartNode() {
+        _uiState.value = _uiState.value.copy(startNode = null, calculatedPath = null, instructions = emptyList())
+    }
+
+    fun clearEndNode() {
+        _uiState.value = _uiState.value.copy(endNode = null, calculatedPath = null, instructions = emptyList())
     }
 
     fun onSearchResultSelected(node: NodeFeature) {
@@ -391,16 +401,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val referenceLocation = currentState.userGpsLocation
             ?: currentState.startNode?.let { GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]) }
 
-        if (referenceLocation == null) {
-            // Need a reference point to find the "nearest".
-            // In a real app, you might show a Toast here asking the user to wait for GPS or pick a start point.
-            return
-        }
+        if (referenceLocation == null) return
 
         val allNodes = currentState.allNodeFeatures
         val queryLower = keyword.lowercase()
 
-        // 1. Find all nodes that match the keyword in their name or type
         val matchedNodes = allNodes.filter { node ->
             val nodeName = node.properties.node_name?.lowercase() ?: ""
             val nodeType = node.properties.node_type?.lowercase() ?: ""
@@ -409,25 +414,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         if (matchedNodes.isEmpty()) return
 
-        // 2. Find the one closest to the reference location
         val closestNode = matchedNodes.minByOrNull { node ->
             GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(referenceLocation)
         }
 
-        // 3. Set it as destination and route!
         if (closestNode != null) {
-            // Auto-set the start node to the user's nearest GPS node if it's currently empty
             var finalStartNode = currentState.startNode
-            if (finalStartNode == null && currentState.userGpsLocation != null) {
+
+            // FIX: Removed the redundant '!= null' warning by knowing referenceLocation enforces it.
+            if (finalStartNode == null) {
                 finalStartNode = allNodes.minByOrNull {
-                    GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(currentState.userGpsLocation)
+                    GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(currentState.userGpsLocation!!)
                 }
             }
 
             _uiState.value = currentState.copy(
                 startNode = finalStartNode,
                 endNode = closestNode,
-                searchQuery = "", // Clear search bar if they used chips
+                searchQuery = "",
                 searchResults = emptyList()
             )
 
