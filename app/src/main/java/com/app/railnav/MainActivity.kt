@@ -36,7 +36,10 @@ import com.app.railnav.ui.theme.RailNavTheme
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import android.app.Activity
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.result.IntentSenderRequest
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Accessible
 import com.google.android.gms.common.api.ResolvableApiException
@@ -144,7 +147,8 @@ fun PathfindingScreen(
                             onSwitchToSimpleMode = { mainViewModel.toggleAdvancedMode() },
                             // FIX: Passing the viewmodel calls as lambdas to resolve Unresolved References!
                             onClearStartNode = { mainViewModel.clearStartNode() },
-                            onClearEndNode = { mainViewModel.clearEndNode() }
+                            onClearEndNode = { mainViewModel.clearEndNode() },
+                            mainViewModel = mainViewModel
                         )
                     } else {
                         TrainDestinationCard(
@@ -208,7 +212,7 @@ fun PathfindingScreen(
                                     settingResultRequest.launch(intentSenderRequest)
                                 } catch (e: Exception) {
                                     // Fallback just in case Google Play Services crashes
-                                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                                    context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                                 }
                             }
                         )
@@ -602,7 +606,7 @@ fun TrainCard(
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = bgColor),
-        border = if (isSelected) androidx.compose.foundation.BorderStroke(
+        border = if (isSelected) BorderStroke(
             2.dp, MaterialTheme.colorScheme.primary
         ) else null
     ) {
@@ -774,15 +778,14 @@ fun AdvancedSearchCard(
     onFindPath: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onSwitchToSimpleMode: () -> Unit,
-    onClearStartNode: () -> Unit, // FIX: Added missing parameter
-    onClearEndNode: () -> Unit    // FIX: Added missing parameter
+    onClearStartNode: () -> Unit,
+    onClearEndNode: () -> Unit,
+    mainViewModel: MainViewModel // Pass the viewModel to trigger the focus state
 ) {
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -804,8 +807,10 @@ fun AdvancedSearchCard(
                 icon = Icons.Default.LocationOn,
                 nodes = uiState.allNodeFeatures,
                 selectedNode = uiState.startNode,
+                isActive = uiState.activeSelectionField == SelectionField.START, // NEW
+                onActiveClick = { mainViewModel.setActiveSelectionField(SelectionField.START) }, // NEW
                 onNodeSelected = onStartNodeSelected,
-                onClearSelection = onClearStartNode, // FIX: Uses parameter cleanly
+                onClearSelection = onClearStartNode,
                 iconTint = Color(0xFF4CAF50)
             )
             ModernNodeSelector(
@@ -813,8 +818,10 @@ fun AdvancedSearchCard(
                 icon = Icons.Default.Flag,
                 nodes = uiState.allNodeFeatures,
                 selectedNode = uiState.endNode,
+                isActive = uiState.activeSelectionField == SelectionField.END, // NEW
+                onActiveClick = { mainViewModel.setActiveSelectionField(SelectionField.END) }, // NEW
                 onNodeSelected = onEndNodeSelected,
-                onClearSelection = onClearEndNode, // FIX: Uses parameter cleanly
+                onClearSelection = onClearEndNode,
                 iconTint = Color(0xFFF44336)
             )
 
@@ -831,9 +838,7 @@ fun AdvancedSearchCard(
             Button(
                 onClick = onFindPath,
                 enabled = uiState.startNode != null && uiState.endNode != null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Navigation, null)
@@ -1023,13 +1028,22 @@ fun ModernNodeSelector(
     icon: ImageVector,
     nodes: List<NodeFeature>,
     selectedNode: NodeFeature?,
+    isActive: Boolean,         // NEW: Tells the UI if this is the focused field
+    onActiveClick: () -> Unit, // NEW: Tells ViewModel this field was clicked
     onNodeSelected: (NodeFeature) -> Unit,
     onClearSelection: () -> Unit,
     iconTint: Color,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            expanded = !expanded
+            if (expanded) onActiveClick() // Set focus when user taps the box
+        }
+    ) {
         OutlinedTextField(
             value = selectedNode?.properties?.node_name ?: "",
             onValueChange = {},
@@ -1048,13 +1062,27 @@ fun ModernNodeSelector(
             modifier = modifier
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            // Visually highlight the box if it is the currently active map-tap target
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                unfocusedContainerColor = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) else Color.Transparent
+            )
         )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            // FIX: Prevent the dropdown from taking over the entire screen!
+            modifier = Modifier.heightIn(max = 250.dp)
+        ) {
             nodes.forEach { node ->
                 DropdownMenuItem(
                     text = { Text(node.properties.node_name ?: "Unnamed") },
-                    onClick = { onNodeSelected(node); expanded = false },
+                    onClick = {
+                        onActiveClick() // Ensure focus is set
+                        onNodeSelected(node)
+                        expanded = false
+                    },
                     leadingIcon = { Icon(Icons.Default.Place, null, Modifier.size(20.dp)) }
                 )
             }

@@ -13,6 +13,8 @@ import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 
+enum class SelectionField { START, END }
+
 data class MainUiState(
     // ── existing graph/navigation state ─────────────────────────────────────
     val allNodeFeatures: List<NodeFeature> = emptyList(),
@@ -23,6 +25,7 @@ data class MainUiState(
     val pathBoundingBox: BoundingBox? = null,
     val isLoading: Boolean = true,
     val isAccessibleRoutePreferred: Boolean = false,
+    val activeSelectionField: SelectionField = SelectionField.START,
 
     // ── legacy manual-node search (used in advanced mode) ───────────────────
     val searchQuery: String = "",
@@ -99,6 +102,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (currentState.startNode != null && currentState.endNode != null) {
             findPath()
         }
+    }
+
+    fun setActiveSelectionField(field: SelectionField) {
+        _uiState.value = _uiState.value.copy(activeSelectionField = field)
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -292,31 +299,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun onMarkerTapped(node: NodeFeature) {
+        val s = _uiState.value
+
+        // Smart routing based on which field the user is actually focused on
+        if (s.activeSelectionField == SelectionField.START) {
+            onStartNodeSelected(node)
+            // Auto-switch focus to the destination field if it's currently empty
+            if (s.endNode == null) {
+                _uiState.value = _uiState.value.copy(activeSelectionField = SelectionField.END)
+            }
+        } else {
+            onEndNodeSelected(node)
+            // Auto-switch focus back to start if they want to change it later
+            if (s.startNode == null) {
+                _uiState.value = _uiState.value.copy(activeSelectionField = SelectionField.START)
+            }
+        }
+    }
+
     fun setStartNodeByTap(tapPoint: GeoPoint) {
         val allNodes = _uiState.value.allNodeFeatures
         if (allNodes.isEmpty()) return
         val closest = allNodes.minByOrNull { node ->
-            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
-                .distanceToAsDouble(tapPoint)
+            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(tapPoint)
         }
-        if (closest != null) onStartNodeSelected(closest)
-    }
-
-    fun onMarkerTapped(node: NodeFeature) {
-        val s = _uiState.value
-        when {
-            s.startNode == null -> onStartNodeSelected(node)
-            s.endNode   == null -> onEndNodeSelected(node)
-            else -> {
-                onStartNodeSelected(node)
-                _uiState.value = _uiState.value.copy(
-                    endNode         = null,
-                    calculatedPath  = null,
-                    instructions    = emptyList(),
-                    pathBoundingBox = null
-                )
-            }
-        }
+        // Reuse the smart logic so touching the map respects the active input field
+        if (closest != null) onMarkerTapped(closest)
     }
 
     fun onLocationReceived(location: GeoPoint) {
