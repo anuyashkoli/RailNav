@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import com.google.android.gms.common.api.ResolvableApiException
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -218,7 +219,7 @@ fun PathfindingScreen(
                                     settingResultRequest.launch(intentSenderRequest)
                                 } catch (_: Exception) {
                                     // Fallback just in case Google Play Services crashes
-                                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                                    context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                                 }
                             }
                         )
@@ -313,9 +314,8 @@ fun PathfindingScreen(
                     TrainListSheet(
                         destination = uiState.selectedDestination ?: "",
                         trains = uiState.availableTrains,
-                        selectedTrain = uiState.selectedTrain,
-                        onTrainSelect = { mainViewModel.onTrainSelected(it) },
-                        onDismiss = { mainViewModel.dismissTrainSheet() }
+                        onTrainSelected = { mainViewModel.onTrainSelected(it) },
+                        onClose = { mainViewModel.dismissTrainSheet() }
                     )
                 }
             }
@@ -390,7 +390,10 @@ fun TrainDestinationCard(
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -417,6 +420,13 @@ fun TrainDestinationCard(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    // FIX: Replaced hardcoded grey with adaptive surfaceVariant
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = Color.Transparent
+                ),
                 singleLine = true
             )
 
@@ -516,7 +526,8 @@ fun StationSuggestionList(
             .shadow(4.dp, RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            contentColor = MaterialTheme.colorScheme.onSurface // <-- FIX: Force adaptive text color!
         )
     ) {
         Column {
@@ -535,7 +546,12 @@ fun StationSuggestionList(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )
-                    Text(station, style = MaterialTheme.typography.bodyMedium)
+                    // FIX: Explicitly color the text to override the alpha bug
+                    Text(
+                        text = station,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
                 if (station != suggestions.last()) {
                     HorizontalDivider(
@@ -553,54 +569,77 @@ fun StationSuggestionList(
 //  Train list bottom sheet
 // ─────────────────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrainListSheet(
     destination: String,
     trains: List<TrainSchedule>,
-    selectedTrain: TrainSchedule?,
-    onTrainSelect: (TrainSchedule) -> Unit,
-    onDismiss: () -> Unit
+    onTrainSelected: (TrainSchedule) -> Unit,
+    onClose: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp)
+    ModalBottomSheet(
+        onDismissRequest = onClose,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    "Upcoming trains to $destination",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    "Tap a train to set it as your destination",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, "Close")
-            }
-        }
-        HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                "Upcoming Trains to $destination",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+                // FIX: Removed color = Color.Black
+            )
+            Spacer(Modifier.height(16.dp))
 
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(trains) { train ->
-                TrainCard(
-                    train = train,
-                    isSelected = train == selectedTrain,
-                    onClick = { onTrainSelect(train) }
-                )
+            LazyColumn {
+                items(trains) { train ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                            .clickable { onTrainSelected(train) },
+                        shape = RoundedCornerShape(12.dp),
+                        // FIX: Replaced hardcoded grey with adaptive surfaceVariant
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    // FIX: Removed color = Color.Black, use onSurface
+                                    Text(train.departureTimeString, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Spacer(Modifier.width(8.dp))
+                                    Surface(
+                                        color = Color(train.type.color).copy(alpha = 0.1f),
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            train.type.displayName,
+                                            color = Color(train.type.color),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                // FIX: Removed Color.Black
+                                Text(train.destination, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                if (train.via.isNotEmpty()) {
+                                    // FIX: Replaced Color.DarkGray with onSurfaceVariant
+                                    Text("Via: ${train.via.joinToString()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                // FIX: Removed Color.Black
+                                Text("Platform ${train.platformAtThane}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                                Text(train.direction.displayName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -803,7 +842,9 @@ fun AdvancedSearchCard(
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        contentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -955,7 +996,8 @@ fun SearchResultsList(
             .shadow(8.dp, RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         LazyColumn(
@@ -1176,6 +1218,7 @@ fun NodeSelectionDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InstructionsSheet(
     instructions: List<NavigationInstruction>,
@@ -1183,54 +1226,48 @@ fun InstructionsSheet(
     endNode: NodeFeature?,
     onClose: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp)
+    ModalBottomSheet(
+        onDismissRequest = onClose,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxWidth()
+            // FIX: Removed .background(Color(0xFFF5F5F5)) which broke Dark Mode
         ) {
-            Column {
-                Text("Route Instructions", fontWeight = FontWeight.Bold)
-                Text("${startNode?.properties?.node_name} → ${endNode?.properties?.node_name}")
-            }
-            IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close") }
-        }
-        HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 400.dp),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            itemsIndexed(instructions) { index, instruction ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(
-                                if (index == instructions.lastIndex) Color(0xFFF44336)
-                                else MaterialTheme.colorScheme.primary,
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
+            Text(
+                "Steps",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(16.dp)
+                // FIX: Removed color = Color.Black
+            )
+
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                itemsIndexed(instructions) { index, instruction ->
+                    Row(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (index == instructions.lastIndex)
-                            Icon(
-                                Icons.Default.Flag,
-                                null,
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        else
-                            Text("${index + 1}", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (index == instructions.lastIndex)
+                                Icon(Icons.Default.Place, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                            else
+                                Text("${index + 1}", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(instruction.text, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
                     }
-                    Text(instruction.text, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface) // <-- FIX: Add .text
+                    if (index < instructions.lastIndex) {
+                        HorizontalDivider()
+                    }
                 }
+                item { Spacer(Modifier.height(24.dp)) }
             }
         }
     }
@@ -1255,7 +1292,8 @@ fun TurnByTurnCard(
             .shadow(12.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -1346,6 +1384,60 @@ fun TurnByTurnCard(
                     Icon(Icons.Default.FormatListNumbered, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Steps (${currentIndex + 1}/$totalInstructions)", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DestinationsSheet(
+    destinations: List<String>,
+    onSelect: (String) -> Unit,
+    onClose: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    val filtered = destinations.filter { it.contains(searchQuery, ignoreCase = true) }
+
+    ModalBottomSheet(
+        onDismissRequest = onClose,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Where are you going?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search station...") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    // FIX: Replaced hardcoded grey with adaptive surfaceVariant
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = Color.Transparent
+                )
+            )
+
+            LazyColumn {
+                items(filtered) { dest ->
+                    ListItem(
+                        headlineContent = { Text(dest, fontWeight = FontWeight.Medium) },
+                        leadingContent = {
+                            Box(Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary.copy(alpha=0.1f), CircleShape), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Train, null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        modifier = Modifier.clickable { onSelect(dest) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                    HorizontalDivider()
                 }
             }
         }
