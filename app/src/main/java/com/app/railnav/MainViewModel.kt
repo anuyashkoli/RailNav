@@ -311,6 +311,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val currentState = _uiState.value
 
+        // ====================================================================
+        //  DYNAMIC REROUTING: OFF-ROUTE DETECTION
+        // ====================================================================
+        // Only run this if a route is active, a destination exists, and we aren't currently loading a route
+        if (currentState.calculatedPath != null && currentState.endNode != null && !currentState.isLoading) {
+
+            // 1. Calculate how far the user is from the closest point on the active path
+            val minDistanceToPath = currentState.calculatedPath.minOfOrNull { pathNode ->
+                GeoPoint(pathNode.coordinates[1], pathNode.coordinates[0]).distanceToAsDouble(location)
+            } ?: 0.0
+
+            // 2. If they wander more than 25 meters away from the line, they are off-route!
+            if (minDistanceToPath > 25.0) {
+                // Find the nearest station node to their current rogue location
+                val nearestNode = currentState.allNodeFeatures.minByOrNull { node ->
+                    GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(location)
+                }
+
+                if (nearestNode != null && nearestNode.properties.node_id != currentState.startNode?.properties?.node_id) {
+                    // Update the start node to their new location and recalculate!
+                    _uiState.value = currentState.copy(startNode = nearestNode)
+                    findPath() // This automatically handles the loading state and draws the new line
+                }
+            }
+        }
+        // ====================================================================
+
         // If user didn't explicitly click the GPS button, and a node/path exists, stay quiet.
         if (!forceNextLocationPrompt && (currentState.startNode != null || currentState.calculatedPath != null)) {
             return
