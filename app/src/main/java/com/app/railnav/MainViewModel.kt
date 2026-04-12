@@ -21,7 +21,7 @@ data class MainUiState(
     val startNode: NodeFeature? = null,
     val endNode: NodeFeature? = null,
     val calculatedPath: List<GraphNode>? = null,
-    val instructions: List<String> = emptyList(),
+    val instructions: List<NavigationInstruction> = emptyList(),
     val pathBoundingBox: BoundingBox? = null,
     val isLoading: Boolean = true,
     val isAccessibleRoutePreferred: Boolean = false,
@@ -55,7 +55,10 @@ data class MainUiState(
     val showTrainSheet: Boolean = false,
 
     // ── facilities (Feature 1 – secondary) ──────────────────────────────────
-    val showFacilitiesSheet: Boolean = false
+    val showFacilitiesSheet: Boolean = false,
+
+    val totalRouteDistanceMeters: Double = 0.0,
+    val etaMinutes: Int = 0
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -251,25 +254,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val result = withContext(Dispatchers.Default) {
                     val path = pathfinder.findShortestPath(startId, endId, _uiState.value.isAccessibleRoutePreferred)
-                    val boundingBox  = calculateBoundingBox(path)
+                    val boundingBox = calculateBoundingBox(path)
+
+                    // FIX 1: If path is null, return an empty list instead of a List of Strings
                     val instructions = if (path != null) {
                         DirectionGenerator.generate(path)
                     } else {
-                        listOf("No path found between the selected nodes.")
+                        emptyList()
                     }
-                    Triple(path, instructions, boundingBox)
+
+                    // Calculate Total Distance using GeoPoints
+                    var totalDistance = 0.0
+                    if (path != null && path.size > 1) {
+                        for (i in 0 until path.size - 1) {
+                            val p1 = GeoPoint(path[i].coordinates[1], path[i].coordinates[0])
+                            val p2 = GeoPoint(path[i+1].coordinates[1], path[i+1].coordinates[0])
+                            totalDistance += p1.distanceToAsDouble(p2)
+                        }
+                    }
+                    // Average human walking speed is ~80 meters per minute
+                    val eta = Math.ceil(totalDistance / 80.0).toInt()
+
+                    object {
+                        val finalPath = path
+                        val finalInstructions = instructions
+                        val finalBox = boundingBox
+                        val dist = totalDistance
+                        val time = eta
+                    }
                 }
+
                 _uiState.value = _uiState.value.copy(
-                    calculatedPath  = result.first,
-                    instructions    = result.second,
-                    pathBoundingBox = result.third,
+                    calculatedPath  = result.finalPath,
+                    instructions    = result.finalInstructions,
+                    pathBoundingBox = result.finalBox,
+                    totalRouteDistanceMeters = result.dist,
+                    etaMinutes = if (result.time < 1) 1 else result.time,
                     isLoading       = false,
-                    currentInstructionIndex = 0 //
+                    currentInstructionIndex = 0
                 )
-            } catch (_: Exception) { // FIX: Removed unused 'e' parameter
+            } catch (_: Exception) {
+                // FIX 2: On crash, return an empty list instead of a List of Strings
                 _uiState.value = _uiState.value.copy(
                     isLoading    = false,
-                    instructions = listOf("An error occurred while calculating the route.")
+                    instructions = emptyList()
                 )
             }
         }
@@ -360,6 +388,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        if (currentState.instructions.isNotEmpty() && currentState.calculatedPath != null) {
+            val currentInstruction = currentState.instructions.getOrNull(currentState.currentInstructionIndex)
+
+            if (currentInstruction != null) {
+                val targetLoc = GeoPoint(
+                    currentInstruction.targetNode.coordinates[1],
+                    currentInstruction.targetNode.coordinates[0]
+                )
+
+                // If the user gets within 8 meters of the instruction's target node...
+                if (location.distanceToAsDouble(targetLoc) <= 8.0) {
+                    nextInstruction() // Automatically swipe to the next step!
+                }
+            }
+        }
         // ====================================================================
 
         // If user didn't explicitly click the GPS button, and a node/path exists, stay quiet.
@@ -408,7 +451,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             endNode = null,
             selectedTrain = null,
             selectedDestination = null,
-            currentInstructionIndex = 0
+            currentInstructionIndex = 0,
+            totalRouteDistanceMeters = 0.0,
+            etaMinutes = 0
         )
     }
 

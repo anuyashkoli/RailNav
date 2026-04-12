@@ -46,6 +46,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.ui.text.style.TextAlign
 import com.google.android.gms.common.api.ResolvableApiException
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -243,12 +245,14 @@ fun PathfindingScreen(
                     .padding(16.dp)
             ) {
                 // Ensure we don't crash if instructions are still generating
-                val currentText = uiState.instructions.getOrNull(uiState.currentInstructionIndex) ?: "Loading steps..."
+                val currentText = uiState.instructions.getOrNull(uiState.currentInstructionIndex)?.text ?: "Loading steps..."
 
                 TurnByTurnCard(
                     currentInstruction = currentText,
                     currentIndex = uiState.currentInstructionIndex,
                     totalInstructions = uiState.instructions.size,
+                    totalDistanceMeters = uiState.totalRouteDistanceMeters,
+                    etaMinutes = uiState.etaMinutes,
                     onNext = { mainViewModel.nextInstruction() },
                     onPrev = { mainViewModel.prevInstruction() },
                     onViewList = { showInstructions = true },
@@ -1173,7 +1177,7 @@ fun NodeSelectionDialog(
 
 @Composable
 fun InstructionsSheet(
-    instructions: List<String>,
+    instructions: List<NavigationInstruction>,
     startNode: NodeFeature?,
     endNode: NodeFeature?,
     onClose: () -> Unit
@@ -1224,7 +1228,7 @@ fun InstructionsSheet(
                         else
                             Text("${index + 1}", color = Color.White, fontWeight = FontWeight.Bold)
                     }
-                    Text(instruction, Modifier.weight(1f))
+                    Text(instruction.text, Modifier.weight(1f)) // <-- FIX: Add .text
                 }
             }
         }
@@ -1236,6 +1240,8 @@ fun TurnByTurnCard(
     currentInstruction: String,
     currentIndex: Int,
     totalInstructions: Int,
+    totalDistanceMeters: Double,
+    etaMinutes: Int,
     onNext: () -> Unit,
     onPrev: () -> Unit,
     onViewList: () -> Unit,
@@ -1260,7 +1266,7 @@ fun TurnByTurnCard(
             ) {
                 IconButton(onClick = onPrev, enabled = currentIndex > 0) {
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack, // FIX: Updated to AutoMirrored
+                        Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Previous Step",
                         tint = if (currentIndex > 0) MaterialTheme.colorScheme.primary else Color.Gray
                     )
@@ -1276,7 +1282,7 @@ fun TurnByTurnCard(
 
                 IconButton(onClick = onNext, enabled = currentIndex < totalInstructions - 1) {
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward, // FIX: Updated to AutoMirrored
+                        Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Next Step",
                         tint = if (currentIndex < totalInstructions - 1) MaterialTheme.colorScheme.primary else Color.Gray
                     )
@@ -1287,7 +1293,7 @@ fun TurnByTurnCard(
             HorizontalDivider(thickness = DividerDefaults.Thickness, color = DividerDefaults.color)
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ── Bottom Row: Quick Actions ──
+            // ── Bottom Row: Quick Actions & Stats ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1298,6 +1304,42 @@ fun TurnByTurnCard(
                     Spacer(Modifier.width(4.dp))
                     Text("Exit", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
+
+                // ==========================================
+                // NEW: Distance & ETA Badge
+                // ==========================================
+                val distanceText = if (totalDistanceMeters > 1000) {
+                    // String.format("%.1f km", totalDistanceMeters / 1000.0)
+                    String.format(Locale.US, "%.1f km", totalDistanceMeters / 1000.0)
+
+                } else {
+                    "${totalDistanceMeters.toInt()} m"
+                }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.DirectionsWalk,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "$etaMinutes min  •  $distanceText",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+                // ==========================================
 
                 TextButton(onClick = onViewList) {
                     Icon(Icons.Default.FormatListNumbered, contentDescription = null, modifier = Modifier.size(18.dp))

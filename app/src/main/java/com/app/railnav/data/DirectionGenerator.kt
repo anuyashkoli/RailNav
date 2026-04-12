@@ -4,11 +4,14 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
+// NEW: Data class to bundle the text with its physical map location
+data class NavigationInstruction(
+    val text: String,
+    val targetNode: GraphNode
+)
+
 object DirectionGenerator {
 
-    /**
-     * Calculates the initial bearing (angle from North) between two geographic points.
-     */
     private fun calculateBearing(nodeA: GraphNode, nodeB: GraphNode): Double {
         val lat1 = Math.toRadians(nodeA.coordinates[1])
         val lon1 = Math.toRadians(nodeA.coordinates[0])
@@ -19,68 +22,75 @@ object DirectionGenerator {
         val y = sin(dLon) * cos(lat2)
         val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
 
-        // Return bearing in degrees
         return (Math.toDegrees(atan2(y, x)) + 360) % 360
     }
 
-    /**
-     * Generates a list of human-readable navigation instructions from a path of nodes.
-     */
-    fun generate(path: List<GraphNode>): List<String> {
-        if (path.size < 2) return listOf("You have arrived at your destination.")
+    fun generate(path: List<GraphNode>): List<NavigationInstruction> {
+        if (path.size < 2) return listOf(
+            NavigationInstruction("You have arrived at your destination.", path.last())
+        )
 
-        val instructions = mutableListOf<String>()
-        instructions.add("Start by heading towards ${path[1].properties.node_name ?: "the next point"}.")
+        val instructions = mutableListOf<NavigationInstruction>()
 
-        // Iterate through the path to find turns and changes in path type.
+        // Start instruction points to the immediate next node
+        instructions.add(
+            NavigationInstruction(
+                "Start by heading towards ${path[1].properties.node_name ?: "the next point"}.",
+                path[1]
+            )
+        )
+
         for (i in 1 until path.size - 1) {
             val prevNode = path[i - 1]
             val currentNode = path[i]
             val nextNode = path[i + 1]
 
-            val bearingIn = calculateBearing(prevNode, currentNode)
-            val bearingOut = calculateBearing(currentNode, nextNode)
-
-            // Calculate the turn angle. A positive value is a right turn, negative is left.
-            var turnAngle = bearingOut - bearingIn
-            if (turnAngle > 180) turnAngle -= 360
-            if (turnAngle < -180) turnAngle += 360
-
             val currentProps = currentNode.properties
             val nextProps = nextNode.properties
 
-            var instruction: String? = null
+            val bearing1 = calculateBearing(prevNode, currentNode)
+            val bearing2 = calculateBearing(currentNode, nextNode)
+            var angleChange = bearing2 - bearing1
 
-            // Rule 1: Generate an instruction at significant junctions based on the turn angle.
-            if (currentProps.node_type == "JUNCTION") {
-                when {
-                    turnAngle > 45 -> instruction = "Turn right towards ${nextProps.node_name ?: "the next point"}."
-                    turnAngle < -45 -> instruction = "Turn left towards ${nextProps.node_name ?: "the next point"}."
-                    // Optional: Add instructions for "slight" turns if desired.
-                }
+            if (angleChange < -180) angleChange += 360
+            if (angleChange > 180) angleChange -= 360
+
+            var instructionText: String? = null
+
+            // Rule 1: Angle changes (Turns)
+            if (angleChange > 45 && angleChange < 135) {
+                instructionText = "Turn right towards ${nextProps.node_name ?: "the next point"}."
+            } else if (angleChange < -45 && angleChange > -135) {
+                instructionText = "Turn left towards ${nextProps.node_name ?: "the next point"}."
             }
 
-            // Rule 2: Generate an instruction when the type of path changes (e.g., walking onto stairs).
+            // Rule 2: Path type changes (Stairs, Lifts, Exits)
             if (currentProps.node_type != nextProps.node_type && nextProps.node_type != null) {
-                instruction = when (nextProps.node_type) {
+                val typeText = when (nextProps.node_type) {
                     "STAIRWAY_TOP" -> "Go towards ${nextProps.node_name ?: "the stairs"}."
                     "STAIRWAY_BOT" -> "Go down ${currentProps.node_name ?: "the stairs"}."
                     "LIFT_TOP" -> "Head towards ${nextProps.node_name ?: "the lift"}."
                     "LIFT_BOT" -> "Take ${currentProps.node_name ?: "the lift"} down."
                     "ENTRY/EXIT" -> "Proceed towards the ${nextProps.node_name ?: "Exit"}."
-                    else -> null // Let the turn-based instruction handle it if one was generated.
+                    else -> null
                 }
+                if (typeText != null) instructionText = typeText
             }
 
-            if (instruction != null) {
-                // To avoid duplicate instructions, only add if it's different from the last one.
-                if (instructions.lastOrNull() != instruction) {
-                    instructions.add(instruction)
+            if (instructionText != null) {
+                val newInstruction = NavigationInstruction(instructionText, nextNode)
+                if (instructions.isEmpty() || instructions.last().text != instructionText) {
+                    instructions.add(newInstruction)
                 }
             }
         }
 
-        instructions.add("You will arrive at your destination: ${path.last().properties.node_name ?: "Final Point"}.")
+        instructions.add(
+            NavigationInstruction(
+                "You will arrive at your destination: ${path.last().properties.node_name ?: "Final Point"}.",
+                path.last()
+            )
+        )
         return instructions
     }
 }
