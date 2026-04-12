@@ -49,21 +49,15 @@ object MapUtils {
 
     /**
      * Handles all station facility nodes and generic pathways
-     * FIX: Now correctly accepts the pre-combined searchStr from MapView
      */
-    fun getNodeIcon(context: Context, searchStr: String, themeColor: Int): Drawable {
+    fun getNodeIcon(context: Context, nodeType: String, searchStr: String, themeColor: Int): Drawable {
         return when {
-            searchStr.contains("ENTRY") || searchStr.contains("EXIT") ->
-                getThemedIcon(context, com.app.railnav.R.drawable.entryexit, themeColor, 28)
-
-            searchStr.contains("STAIR") ->
-                getThemedIcon(context, com.app.railnav.R.drawable.stairs, themeColor, 28)
+            // STRICT MATCH: Only show entry icon if the type is exactly "ENTRY/EXIT"
+            nodeType == "ENTRY/EXIT" ->
+                getThemedIcon(context, com.app.railnav.R.drawable.entryexit, themeColor, 16)
 
             searchStr.contains("LIFT") || searchStr.contains("ELEVATOR") ->
-                getThemedIcon(context, com.app.railnav.R.drawable.elevator, themeColor, 28)
-
-            searchStr.contains("ESCALATOR") ->
-                getThemedIcon(context, com.app.railnav.R.drawable.escalator, themeColor, 28)
+                getThemedIcon(context, com.app.railnav.R.drawable.elevator, themeColor, 16)
 
             else ->
                 // Generic pathway nodes are kept tiny (8dp) so they don't clutter the map

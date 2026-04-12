@@ -1,5 +1,6 @@
 package com.app.railnav
 
+import android.graphics.Color
 import android.view.View
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
@@ -56,19 +57,58 @@ fun MapView(
             // Clear old overlays but keep MapEventsOverlay
             if (view.overlays.size > 1) view.overlays.subList(1, view.overlays.size).clear()
 
-            // 1. Draw Edges
+            // Create a lookup map for node NAMES to detect Escalators
+            val nodeDataMap = allNodes.associate {
+                it.properties.node_id to Pair(
+                    it.properties.node_name?.uppercase() ?: "",
+                    it.properties.node_level ?: 0
+                )
+            }
+
+            // 1. Draw Edges (with Data-Driven Stair/Escalator Highlighting)
             allEdges.forEach { edge ->
+                val startId = edge.properties.start_id.trim().toIntOrNull() ?: return@forEach
+                val endId = edge.properties.end_id.trim().toIntOrNull() ?: return@forEach
+
+                val edgeType = edge.properties.edge_type?.uppercase() ?: ""
+
+                val startData = nodeDataMap[startId] ?: Pair("", 0)
+                val endData = nodeDataMap[endId] ?: Pair("", 0)
+
+                val startName = startData.first
+                val startLevel = startData.second
+                val endName = endData.first
+                val endLevel = endData.second
+
+                // FIX: Check for Escalators FIRST!
+                // Both nodes must have "ESCALATOR" in their name AND be on different floors.
+                val isEscalator = edgeType.contains("ESCALATOR") ||
+                        (startName.contains("ESCALATOR") && endName.contains("ESCALATOR") && startLevel != endLevel)
+
+                // If it is an escalator, it mathematically cannot be a standard stair,
+                // even if the GIS mapper accidentally tagged it as "STAIRWAY" in edge_type.
+                val isStair = edgeType.contains("STAIR") && !isEscalator
+
                 val polyline = Polyline().apply {
                     setPoints(edge.geometry.coordinates.map { GeoPoint(it[1], it[0]) })
-                    outlinePaint.color = 0xFFBDBDBD.toInt()
-                    outlinePaint.strokeWidth = 6f
+                    outlinePaint.strokeWidth = 8f
+
+                    // FIX: Reversed Priority. Check Purple before Orange.
+                    outlinePaint.color = when {
+                        isEscalator -> Color.parseColor("#9C27B0") // Purple for Escalators
+                        isStair -> Color.parseColor("#FF0800") // Red for Stairs
+                        else -> Color.parseColor("#70AEFF") // IDE Bulb Yellow
+                    }
                 }
                 view.overlays.add(polyline)
             }
 
             // 2. Draw Active Path
             if (path != null && path.size > 1) {
-                val edgeMap = allEdges.associateBy { Pair(it.properties.start_id.toInt(), it.properties.end_id.toInt()) }
+                val edgeMap = allEdges.associateBy {
+                    Pair(it.properties.start_id.trim().toIntOrNull() ?: 0, it.properties.end_id.trim().toIntOrNull() ?: 0)
+                }
+
                 for (i in 0 until path.size - 1) {
                     val edge = edgeMap[Pair(path[i].properties.node_id, path[i+1].properties.node_id)]
                     if (edge != null) {
@@ -76,18 +116,17 @@ fun MapView(
 
                         view.overlays.add(Polyline().apply {
                             setPoints(points)
-                            outlinePaint.color = 0xFFFFFFFF.toInt()
+                            outlinePaint.color = Color.WHITE
                             outlinePaint.strokeWidth = 18f
                         })
                         view.overlays.add(Polyline().apply {
                             setPoints(points)
-                            outlinePaint.color = 0xFF1976D2.toInt()
+                            outlinePaint.color = Color.parseColor("#1976D2")
                             outlinePaint.strokeWidth = 12f
                         })
                     }
                 }
 
-                // Add START and END markers. Tag them in 'relatedObject' so they never get hidden by zoom.
                 view.overlays.add(Marker(view).apply {
                     position = GeoPoint(path.first().coordinates[1], path.first().coordinates[0])
                     icon = MapUtils.getSystemMarker(context, "START")
@@ -112,27 +151,31 @@ fun MapView(
                 })
             }
 
-            // 4. Draw All Nodes with Initial Zoom Visibility Logic
+            // 4. Draw Nodes
             val currentZoom = view.zoomLevelDouble
             allNodes.forEach { node ->
+                val nodeType = node.properties.node_type?.uppercase() ?: ""
+                val nodeName = node.properties.node_name?.uppercase() ?: ""
+
+                val searchStr = "$nodeType $nodeName"
+
+                // IGNORE: Stairs/Escalators (path is drawn above) and strict "FACILITY" nodes
+                if (searchStr.contains("STAIR") || searchStr.contains("ESCALATOR") || nodeType == "FACILITY") {
+                    return@forEach
+                }
+
+                val isEntryExit = (nodeType == "ENTRY/EXIT")
+
                 val marker = Marker(view).apply {
                     position = GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
-
-                    // Combine Type and Name to figure out what this node is
-                    val searchStr = "${node.properties.node_type ?: ""} ${node.properties.node_name ?: ""}".uppercase()
-
-                    // Save this string in the marker so our MapListener can read it later when zooming
                     relatedObject = searchStr
+                    icon = MapUtils.getNodeIcon(context, nodeType, searchStr, currentThemeColor)
 
-                    // Get the icon
-                    icon = MapUtils.getNodeIcon(context, searchStr, currentThemeColor)
-
-                    // Determine INITIAL visibility based on current zoom
                     isEnabled = when {
-                        searchStr.contains("ENTRY") || searchStr.contains("EXIT") -> true // Tier 1: Always visible
-                        searchStr.contains("LIFT") || searchStr.contains("ELEVATOR") || searchStr.contains("TICKET") -> currentZoom >= 17.5 // Tier 2
-                        searchStr.contains("STAIR") || searchStr.contains("ESCALATOR") -> currentZoom >= 18.5 // Tier 3
-                        else -> currentZoom >= 19.5 // Tier 4: Generic dots
+                        currentZoom < 16.0 -> false
+                        isEntryExit -> currentZoom >= 16.0
+                        searchStr.contains("LIFT") || searchStr.contains("ELEVATOR") || searchStr.contains("TICKET") -> currentZoom >= 17.5
+                        else -> currentZoom >= 19.5
                     }
 
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
@@ -140,7 +183,6 @@ fun MapView(
                     setOnMarkerClickListener { _, _ -> onMarkerTap(node); true }
                 }
 
-                // Add directly to the map (NO CLUSTERER)
                 view.overlays.add(marker)
             }
 
@@ -158,39 +200,37 @@ fun rememberMapViewWithLifecycle(onMapTap: (GeoPoint) -> Unit): MapView {
             Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", 0))
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
-            minZoomLevel = 15.0
+            minZoomLevel = 13.0
             controller.setZoom(19.0)
             controller.setCenter(GeoPoint(19.186, 72.975))
 
-            // Handle Tap Events
             overlays.add(0, MapEventsOverlay(object : MapEventsReceiver {
                 override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean { p?.let { onMapTap(it) }; return true }
                 override fun longPressHelper(p: GeoPoint?): Boolean = false
             }))
 
-            // NEW: Listen for Zoom changes to progressively reveal markers
             addMapListener(object : MapListener {
                 override fun onScroll(event: ScrollEvent?): Boolean = false
                 override fun onZoom(event: ZoomEvent?): Boolean {
                     val zoom = event?.zoomLevel ?: return false
 
-                    // Loop through all markers currently on the map
                     overlays.filterIsInstance<Marker>().forEach { marker ->
                         val typeStr = (marker.relatedObject as? String) ?: return@forEach
 
                         if (typeStr == "SYSTEM_MARKER") {
-                            marker.isEnabled = true // Start, End, and GPS dots never disappear
+                            marker.isEnabled = true
                         } else {
-                            // Dynamically toggle visibility based on zoom thresholds
+                            val isEntryExit = typeStr.startsWith("ENTRY/EXIT ") || typeStr == "ENTRY/EXIT"
+
                             marker.isEnabled = when {
-                                typeStr.contains("ENTRY") || typeStr.contains("EXIT") -> true
+                                zoom < 16.0 -> false
+                                isEntryExit -> zoom >= 16.0
                                 typeStr.contains("LIFT") || typeStr.contains("ELEVATOR") || typeStr.contains("TICKET") -> zoom >= 17.5
-                                typeStr.contains("STAIR") || typeStr.contains("ESCALATOR") -> zoom >= 18.5
                                 else -> zoom >= 19.5
                             }
                         }
                     }
-                    invalidate() // Redraw the map to apply the visibility changes
+                    invalidate()
                     return true
                 }
             })
