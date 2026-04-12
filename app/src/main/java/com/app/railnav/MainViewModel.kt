@@ -13,15 +13,20 @@ import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 
+enum class SelectionField { START, END }
+
 data class MainUiState(
     // ── existing graph/navigation state ─────────────────────────────────────
     val allNodeFeatures: List<NodeFeature> = emptyList(),
     val startNode: NodeFeature? = null,
     val endNode: NodeFeature? = null,
     val calculatedPath: List<GraphNode>? = null,
-    val instructions: List<String> = emptyList(),
+    val instructions: List<NavigationInstruction> = emptyList(),
     val pathBoundingBox: BoundingBox? = null,
     val isLoading: Boolean = true,
+    val isAccessibleRoutePreferred: Boolean = false,
+    val activeSelectionField: SelectionField = SelectionField.START,
+    val currentInstructionIndex: Int = 0,
 
     // ── legacy manual-node search (used in advanced mode) ───────────────────
     val searchQuery: String = "",
@@ -29,6 +34,7 @@ data class MainUiState(
 
     // ── location ────────────────────────────────────────────────────────────
     val userGpsLocation: GeoPoint? = null,
+    val isTrackingModeActive: Boolean = false, // <-- NEW ADDITION
     val nearestNodeCandidates: List<NodeFeature> = emptyList(),
     val showNodeSelectionDialog: Boolean = false,
 
@@ -49,7 +55,10 @@ data class MainUiState(
     val showTrainSheet: Boolean = false,
 
     // ── facilities (Feature 1 – secondary) ──────────────────────────────────
-    val showFacilitiesSheet: Boolean = false
+    val showFacilitiesSheet: Boolean = false,
+
+    val totalRouteDistanceMeters: Double = 0.0,
+    val etaMinutes: Int = 0
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -85,6 +94,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(
             isAdvancedMode = !_uiState.value.isAdvancedMode
         )
+    }
+
+    fun toggleAccessibilityMode() {
+        val currentState = _uiState.value
+        val newMode = !currentState.isAccessibleRoutePreferred
+
+        _uiState.value = currentState.copy(isAccessibleRoutePreferred = newMode)
+
+        // If a route is already drawn, instantly recalculate it with the new accessibility rules
+        if (currentState.startNode != null && currentState.endNode != null) {
+            findPath()
+        }
+    }
+
+    fun setActiveSelectionField(field: SelectionField) {
+        _uiState.value = _uiState.value.copy(activeSelectionField = field)
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -228,25 +253,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val result = withContext(Dispatchers.Default) {
-                    val path         = pathfinder.findShortestPath(startId, endId)
-                    val boundingBox  = calculateBoundingBox(path)
+                    val path = pathfinder.findShortestPath(startId, endId, _uiState.value.isAccessibleRoutePreferred)
+                    val boundingBox = calculateBoundingBox(path)
+
+                    // FIX 1: If path is null, return an empty list instead of a List of Strings
                     val instructions = if (path != null) {
                         DirectionGenerator.generate(path)
                     } else {
-                        listOf("No path found between the selected nodes.")
+                        emptyList()
                     }
-                    Triple(path, instructions, boundingBox)
+
+                    // Calculate Total Distance using GeoPoints
+                    var totalDistance = 0.0
+                    if (path != null && path.size > 1) {
+                        for (i in 0 until path.size - 1) {
+                            val p1 = GeoPoint(path[i].coordinates[1], path[i].coordinates[0])
+                            val p2 = GeoPoint(path[i+1].coordinates[1], path[i+1].coordinates[0])
+                            totalDistance += p1.distanceToAsDouble(p2)
+                        }
+                    }
+                    // Average human walking speed is ~80 meters per minute
+                    val eta = Math.ceil(totalDistance / 80.0).toInt()
+
+                    object {
+                        val finalPath = path
+                        val finalInstructions = instructions
+                        val finalBox = boundingBox
+                        val dist = totalDistance
+                        val time = eta
+                    }
                 }
+
                 _uiState.value = _uiState.value.copy(
-                    calculatedPath  = result.first,
-                    instructions    = result.second,
-                    pathBoundingBox = result.third,
-                    isLoading       = false
+                    calculatedPath  = result.finalPath,
+                    instructions    = result.finalInstructions,
+                    pathBoundingBox = result.finalBox,
+                    totalRouteDistanceMeters = result.dist,
+                    etaMinutes = if (result.time < 1) 1 else result.time,
+                    isLoading       = false,
+                    currentInstructionIndex = 0
                 )
-            } catch (_: Exception) { // FIX: Removed unused 'e' parameter
+            } catch (_: Exception) {
+                // FIX 2: On crash, return an empty list instead of a List of Strings
                 _uiState.value = _uiState.value.copy(
                     isLoading    = false,
-                    instructions = listOf("An error occurred while calculating the route.")
+                    instructions = emptyList()
                 )
             }
         }
@@ -278,37 +329,113 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun onMarkerTapped(node: NodeFeature) {
+        val s = _uiState.value
+
+        // Smart routing based on which field the user is actually focused on
+        if (s.activeSelectionField == SelectionField.START) {
+            onStartNodeSelected(node)
+            // Auto-switch focus to the destination field if it's currently empty
+            if (s.endNode == null) {
+                _uiState.value = _uiState.value.copy(activeSelectionField = SelectionField.END)
+            }
+        } else {
+            onEndNodeSelected(node)
+            // Auto-switch focus back to start if they want to change it later
+            if (s.startNode == null) {
+                _uiState.value = _uiState.value.copy(activeSelectionField = SelectionField.START)
+            }
+        }
+    }
+
     fun setStartNodeByTap(tapPoint: GeoPoint) {
         val allNodes = _uiState.value.allNodeFeatures
         if (allNodes.isEmpty()) return
         val closest = allNodes.minByOrNull { node ->
-            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
-                .distanceToAsDouble(tapPoint)
+            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(tapPoint)
         }
-        if (closest != null) onStartNodeSelected(closest)
-    }
-
-    fun onMarkerTapped(node: NodeFeature) {
-        val s = _uiState.value
-        when {
-            s.startNode == null -> onStartNodeSelected(node)
-            s.endNode   == null -> onEndNodeSelected(node)
-            else -> {
-                onStartNodeSelected(node)
-                _uiState.value = _uiState.value.copy(
-                    endNode         = null,
-                    calculatedPath  = null,
-                    instructions    = emptyList(),
-                    pathBoundingBox = null
-                )
-            }
-        }
+        // Reuse the smart logic so touching the map respects the active input field
+        if (closest != null) onMarkerTapped(closest)
     }
 
     fun onLocationReceived(location: GeoPoint) {
         _uiState.value = _uiState.value.copy(userGpsLocation = location)
 
         val currentState = _uiState.value
+
+        // ====================================================================
+        //  DYNAMIC REROUTING: OFF-ROUTE DETECTION
+        // ====================================================================
+        // Only run this if a route is active, a destination exists, and we aren't currently loading a route
+        if (currentState.calculatedPath != null && currentState.endNode != null && !currentState.isLoading) {
+
+            // 1. Calculate how far the user is from the closest point on the active path
+            val minDistanceToPath = currentState.calculatedPath.minOfOrNull { pathNode ->
+                GeoPoint(pathNode.coordinates[1], pathNode.coordinates[0]).distanceToAsDouble(location)
+            } ?: 0.0
+
+            // 2. If they wander more than 25 meters away from the line, they are off-route!
+            if (minDistanceToPath > 25.0) {
+                // Find the nearest station node to their current rogue location
+                val nearestNode = currentState.allNodeFeatures.minByOrNull { node ->
+                    GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(location)
+                }
+
+                if (nearestNode != null && nearestNode.properties.node_id != currentState.startNode?.properties?.node_id) {
+                    // Update the start node to their new location and recalculate!
+                    _uiState.value = currentState.copy(startNode = nearestNode)
+                    findPath() // This automatically handles the loading state and draws the new line
+                }
+            }
+        }
+
+        // ====================================================================
+        //  LIVE ETA & DISTANCE COUNTDOWN
+        // ====================================================================
+        val currentPath = _uiState.value.calculatedPath
+        if (currentPath != null && currentPath.isNotEmpty()) {
+            // 1. Find where the user is currently located on the path
+            val closestNodeIndex = currentPath.indices.minByOrNull { i ->
+                GeoPoint(currentPath[i].coordinates[1], currentPath[i].coordinates[0]).distanceToAsDouble(location)
+            } ?: 0
+
+            // 2. Start with the distance from the user to the path
+            var remainingDist = location.distanceToAsDouble(
+                GeoPoint(currentPath[closestNodeIndex].coordinates[1], currentPath[closestNodeIndex].coordinates[0])
+            )
+
+            // 3. Add up the rest of the path to the destination
+            for (i in closestNodeIndex until currentPath.size - 1) {
+                val p1 = GeoPoint(currentPath[i].coordinates[1], currentPath[i].coordinates[0])
+                val p2 = GeoPoint(currentPath[i+1].coordinates[1], currentPath[i+1].coordinates[0])
+                remainingDist += p1.distanceToAsDouble(p2)
+            }
+
+            val newEta = Math.ceil(remainingDist / 80.0).toInt()
+
+            _uiState.value = _uiState.value.copy(
+                totalRouteDistanceMeters = remainingDist,
+                etaMinutes = if (newEta < 1) 1 else newEta
+            )
+        }
+        // ====================================================================
+
+        if (currentState.instructions.isNotEmpty() && currentState.calculatedPath != null) {
+            val currentInstruction = currentState.instructions.getOrNull(currentState.currentInstructionIndex)
+
+            if (currentInstruction != null) {
+                val targetLoc = GeoPoint(
+                    currentInstruction.targetNode.coordinates[1],
+                    currentInstruction.targetNode.coordinates[0]
+                )
+
+                // If the user gets within 8 meters of the instruction's target node...
+                if (location.distanceToAsDouble(targetLoc) <= 8.0) {
+                    nextInstruction() // Automatically swipe to the next step!
+                }
+            }
+        }
+        // ====================================================================
 
         // If user didn't explicitly click the GPS button, and a node/path exists, stay quiet.
         if (!forceNextLocationPrompt && (currentState.startNode != null || currentState.calculatedPath != null)) {
@@ -335,8 +462,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onGpsButtonClicked() {
         forceNextLocationPrompt = true
-        // If we already have a location cached, trigger the dialog immediately
+        // Turn tracking mode ON when they explicitly hit the GPS button
+        _uiState.value = _uiState.value.copy(isTrackingModeActive = true)
         _uiState.value.userGpsLocation?.let { onLocationReceived(it) }
+    }
+
+    fun disableTrackingMode() {
+        // Turn tracking mode OFF (called when the user touches the map)
+        if (_uiState.value.isTrackingModeActive) {
+            _uiState.value = _uiState.value.copy(isTrackingModeActive = false)
+        }
     }
 
     fun clearRoute() {
@@ -347,7 +482,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             startNode = null,
             endNode = null,
             selectedTrain = null,
-            selectedDestination = null
+            selectedDestination = null,
+            currentInstructionIndex = 0,
+            totalRouteDistanceMeters = 0.0,
+            etaMinutes = 0
         )
     }
 
@@ -440,4 +578,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    fun nextInstruction() {
+        val s = _uiState.value
+        if (s.currentInstructionIndex < s.instructions.lastIndex) {
+            _uiState.value = s.copy(currentInstructionIndex = s.currentInstructionIndex + 1)
+        }
+    }
+
+    fun prevInstruction() {
+        val s = _uiState.value
+        if (s.currentInstructionIndex > 0) {
+            _uiState.value = s.copy(currentInstructionIndex = s.currentInstructionIndex - 1)
+        }
+    }
+
 }

@@ -20,32 +20,57 @@ class Pathfinder(private val graph: Graph) {
         return earthRadius * c
     }
 
-    fun findShortestPath(startNodeId: Int, endNodeId: Int): List<GraphNode>? {
+    // FIX: Added 'isAccessiblePreferred' with a default value of false
+    fun findShortestPath(startNodeId: Int, endNodeId: Int, isAccessiblePreferred: Boolean = false): List<GraphNode>? {
         val startNode = graph.getNodeById(startNodeId)
         val endNode = graph.getNodeById(endNodeId)
         if (startNode == null || endNode == null) return null
+
         val cameFrom = mutableMapOf<GraphNode, GraphNode>()
-        val costFromStart = mutableMapOf<GraphNode, Double>().withDefault { Double.MAX_VALUE }
-        val closedSet = mutableSetOf<GraphNode>()
-        val openSet = PriorityQueue<GraphNode> { a, b ->
-            (costFromStart.getValue(a) + heuristicDistance(a, endNode)).compareTo(costFromStart.getValue(b) + heuristicDistance(b, endNode))
-        }
+        val costFromStart = mutableMapOf<GraphNode, Double>().withDefault { Double.POSITIVE_INFINITY }
         costFromStart[startNode] = 0.0
+
+        val openSet = PriorityQueue<GraphNode> { a, b ->
+            val fA = costFromStart.getValue(a) + heuristicDistance(a, endNode)
+            val fB = costFromStart.getValue(b) + heuristicDistance(b, endNode)
+            fA.compareTo(fB)
+        }
         openSet.add(startNode)
+        val closedSet = mutableSetOf<GraphNode>()
+
         while (openSet.isNotEmpty()) {
-            val current = openSet.poll()!!
-            if (current == endNode) return reconstructPath(cameFrom, current)
+            val current = openSet.poll() ?: break
+            if (current.properties.node_id == endNode.properties.node_id) {
+                return reconstructPath(cameFrom, current)
+            }
             if (current in closedSet) continue
             closedSet.add(current)
+
             current.neighbors.forEach { (neighborNode, distance, edgeProps) ->
                 val currentLevel = current.properties.node_level
                 val neighborLevel = neighborNode.properties.node_level
                 val isVertical = edgeProps.edge_type?.let {
                     it.contains("STAIR", true) || it.contains("LIFT", true) || it.contains("ESCALATOR", true)
                 } ?: false
+
                 if (currentLevel != neighborLevel && !isVertical) return@forEach
-                val weightMultiplier = if (edgeProps.edge_type?.contains("STAIR", true) == true) 10.0 else 1.0
+
+                // =================================================================
+                // NEW: ACCESSIBILITY COST LOGIC
+                // =================================================================
+                val weightMultiplier = if (isAccessiblePreferred) {
+                    val isInaccessible = edgeProps.edge_accessibilty.equals("NO", ignoreCase = true) ||
+                            edgeProps.edge_type?.contains("STAIR", true) == true ||
+                            edgeProps.edge_type?.contains("ESCALATOR", true) == true
+                    if (isInaccessible) 10000.0 else 1.0 // Massive 10,000x penalty to avoid stairs
+                } else {
+                    // Standard Mode: Just slightly penalize stairs to prefer flat paths
+                    if (edgeProps.edge_type?.contains("STAIR", true) == true) 10.0 else 1.0
+                }
+                // =================================================================
+
                 val tentativeGScore = costFromStart.getValue(current) + (distance * weightMultiplier)
+
                 if (tentativeGScore < costFromStart.getValue(neighborNode)) {
                     cameFrom[neighborNode] = current
                     costFromStart[neighborNode] = tentativeGScore

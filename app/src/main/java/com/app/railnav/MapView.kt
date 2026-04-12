@@ -24,6 +24,8 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import android.view.MotionEvent
+import org.osmdroid.views.overlay.Overlay
 
 @Composable
 fun MapView(
@@ -36,6 +38,8 @@ fun MapView(
     allNodes: List<NodeFeature>,
     onMarkerTap: (NodeFeature) -> Unit,
     userGpsLocation: GeoPoint?,
+    isTrackingModeActive: Boolean,
+    onDisableTracking: () -> Unit,
     @Suppress("UNUSED_PARAMETER") startNode: NodeFeature?
 ) {
     val context = LocalContext.current
@@ -50,12 +54,30 @@ fun MapView(
         }
     }
 
+    // NEW: The "Follow Me" Camera logic
+    LaunchedEffect(userGpsLocation, isTrackingModeActive) {
+        if (isTrackingModeActive && userGpsLocation != null) {
+            // Smoothly pan the camera to the new GPS location
+            mapView.controller.animateTo(userGpsLocation)
+        }
+    }
+
     AndroidView(
         modifier = modifier,
         factory = { mapView },
         update = { view ->
             // Clear old overlays but keep MapEventsOverlay
             if (view.overlays.size > 1) view.overlays.subList(1, view.overlays.size).clear()
+
+            val touchOverlay = object : Overlay() {
+                override fun onTouchEvent(event: MotionEvent?, mapView: MapView?): Boolean {
+                    if (event?.action == MotionEvent.ACTION_DOWN && isTrackingModeActive) {
+                        onDisableTracking()
+                    }
+                    return false // Return false so the user can still actually drag the map
+                }
+            }
+            view.overlays.add(touchOverlay)
 
             // Create a lookup map for node NAMES to detect Escalators
             val nodeDataMap = allNodes.associate {
@@ -97,7 +119,7 @@ fun MapView(
                     outlinePaint.color = when {
                         isEscalator -> Color.parseColor("#9C27B0") // Purple for Escalators
                         isStair -> Color.parseColor("#FF0800") // Red for Stairs
-                        else -> Color.parseColor("#70EFF") // IDE Bulb Yellow
+                        else -> Color.parseColor("#EED202") // IDE File Text Blue
                     }
                 }
                 view.overlays.add(polyline)

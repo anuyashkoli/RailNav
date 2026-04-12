@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -37,8 +36,18 @@ import com.app.railnav.ui.theme.RailNavTheme
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import android.app.Activity
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.result.IntentSenderRequest
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Accessible
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.ui.text.style.TextAlign
 import com.google.android.gms.common.api.ResolvableApiException
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,6 +123,8 @@ fun PathfindingScreen(
                 allNodes = uiState.allNodeFeatures,
                 onMarkerTap = { mainViewModel.onMarkerTapped(it) },
                 userGpsLocation = uiState.userGpsLocation,
+                isTrackingModeActive = uiState.isTrackingModeActive,
+                onDisableTracking = { mainViewModel.disableTrackingMode() },
                 startNode = uiState.startNode
             )
 
@@ -141,7 +152,8 @@ fun PathfindingScreen(
                             onSwitchToSimpleMode = { mainViewModel.toggleAdvancedMode() },
                             // FIX: Passing the viewmodel calls as lambdas to resolve Unresolved References!
                             onClearStartNode = { mainViewModel.clearStartNode() },
-                            onClearEndNode = { mainViewModel.clearEndNode() }
+                            onClearEndNode = { mainViewModel.clearEndNode() },
+                            mainViewModel = mainViewModel
                         )
                     } else {
                         TrainDestinationCard(
@@ -203,7 +215,7 @@ fun PathfindingScreen(
                                 try {
                                     val intentSenderRequest = IntentSenderRequest.Builder(resolvableException.resolution).build()
                                     settingResultRequest.launch(intentSenderRequest)
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     // Fallback just in case Google Play Services crashes
                                     context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                                 }
@@ -216,21 +228,35 @@ fun PathfindingScreen(
                 onSwapNodes = { mainViewModel.swapNodes() },
                 onFacilities = { mainViewModel.showFacilities() },
                 showSwap = uiState.isAdvancedMode,
+                isAccessiblePreferred = uiState.isAccessibleRoutePreferred,
+                onToggleAccessibility = { mainViewModel.toggleAccessibilityMode() },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp)
             )
 
-            // ── View Route FAB ─────────────────────────────────────────────
-            if (uiState.calculatedPath != null) {
-                ExtendedFloatingActionButton(
-                    onClick = { showInstructions = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    icon = { Icon(Icons.Default.Directions, null) },
-                    text = { Text("View Route") }
+            // ── Dynamic Turn-By-Turn Banner ────────────────────────────────
+            AnimatedVisibility(
+                visible = uiState.calculatedPath != null,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            ) {
+                // Ensure we don't crash if instructions are still generating
+                val currentText = uiState.instructions.getOrNull(uiState.currentInstructionIndex)?.text ?: "Loading steps..."
+
+                TurnByTurnCard(
+                    currentInstruction = currentText,
+                    currentIndex = uiState.currentInstructionIndex,
+                    totalInstructions = uiState.instructions.size,
+                    totalDistanceMeters = uiState.totalRouteDistanceMeters,
+                    etaMinutes = uiState.etaMinutes,
+                    onNext = { mainViewModel.nextInstruction() },
+                    onPrev = { mainViewModel.prevInstruction() },
+                    onViewList = { showInstructions = true },
+                    onExit = { mainViewModel.clearRoute() }
                 )
             }
 
@@ -597,7 +623,7 @@ fun TrainCard(
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = bgColor),
-        border = if (isSelected) androidx.compose.foundation.BorderStroke(
+        border = if (isSelected) BorderStroke(
             2.dp, MaterialTheme.colorScheme.primary
         ) else null
     ) {
@@ -769,15 +795,14 @@ fun AdvancedSearchCard(
     onFindPath: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onSwitchToSimpleMode: () -> Unit,
-    onClearStartNode: () -> Unit, // FIX: Added missing parameter
-    onClearEndNode: () -> Unit    // FIX: Added missing parameter
+    onClearStartNode: () -> Unit,
+    onClearEndNode: () -> Unit,
+    mainViewModel: MainViewModel // Pass the viewModel to trigger the focus state
 ) {
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -799,8 +824,10 @@ fun AdvancedSearchCard(
                 icon = Icons.Default.LocationOn,
                 nodes = uiState.allNodeFeatures,
                 selectedNode = uiState.startNode,
+                isActive = uiState.activeSelectionField == SelectionField.START, // NEW
+                onActiveClick = { mainViewModel.setActiveSelectionField(SelectionField.START) }, // NEW
                 onNodeSelected = onStartNodeSelected,
-                onClearSelection = onClearStartNode, // FIX: Uses parameter cleanly
+                onClearSelection = onClearStartNode,
                 iconTint = Color(0xFF4CAF50)
             )
             ModernNodeSelector(
@@ -808,8 +835,10 @@ fun AdvancedSearchCard(
                 icon = Icons.Default.Flag,
                 nodes = uiState.allNodeFeatures,
                 selectedNode = uiState.endNode,
+                isActive = uiState.activeSelectionField == SelectionField.END, // NEW
+                onActiveClick = { mainViewModel.setActiveSelectionField(SelectionField.END) }, // NEW
                 onNodeSelected = onEndNodeSelected,
-                onClearSelection = onClearEndNode, // FIX: Uses parameter cleanly
+                onClearSelection = onClearEndNode,
                 iconTint = Color(0xFFF44336)
             )
 
@@ -826,9 +855,7 @@ fun AdvancedSearchCard(
             Button(
                 onClick = onFindPath,
                 enabled = uiState.startNode != null && uiState.endNode != null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Navigation, null)
@@ -851,6 +878,8 @@ fun MapControls(
     onSwapNodes: () -> Unit,
     onFacilities: () -> Unit,
     showSwap: Boolean,
+    isAccessiblePreferred: Boolean,
+    onToggleAccessibility: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -861,6 +890,20 @@ fun MapControls(
             icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
             onClick = onToggleTheme
         )
+
+        FloatingActionButton(
+            onClick = onToggleAccessibility,
+            modifier = Modifier.size(48.dp),
+            containerColor = if (isAccessiblePreferred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Accessible,
+                contentDescription = "Accessible Route Only",
+                tint = if (isAccessiblePreferred) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
         MapControlButton(
             icon = Icons.Default.MedicalServices,
             onClick = onFacilities
@@ -1002,13 +1045,22 @@ fun ModernNodeSelector(
     icon: ImageVector,
     nodes: List<NodeFeature>,
     selectedNode: NodeFeature?,
+    isActive: Boolean,         // NEW: Tells the UI if this is the focused field
+    onActiveClick: () -> Unit, // NEW: Tells ViewModel this field was clicked
     onNodeSelected: (NodeFeature) -> Unit,
     onClearSelection: () -> Unit,
     iconTint: Color,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            expanded = !expanded
+            if (expanded) onActiveClick() // Set focus when user taps the box
+        }
+    ) {
         OutlinedTextField(
             value = selectedNode?.properties?.node_name ?: "",
             onValueChange = {},
@@ -1027,13 +1079,27 @@ fun ModernNodeSelector(
             modifier = modifier
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            // Visually highlight the box if it is the currently active map-tap target
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                unfocusedContainerColor = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) else Color.Transparent
+            )
         )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            // FIX: Prevent the dropdown from taking over the entire screen!
+            modifier = Modifier.heightIn(max = 250.dp)
+        ) {
             nodes.forEach { node ->
                 DropdownMenuItem(
                     text = { Text(node.properties.node_name ?: "Unnamed") },
-                    onClick = { onNodeSelected(node); expanded = false },
+                    onClick = {
+                        onActiveClick() // Ensure focus is set
+                        onNodeSelected(node)
+                        expanded = false
+                    },
                     leadingIcon = { Icon(Icons.Default.Place, null, Modifier.size(20.dp)) }
                 )
             }
@@ -1111,7 +1177,7 @@ fun NodeSelectionDialog(
 
 @Composable
 fun InstructionsSheet(
-    instructions: List<String>,
+    instructions: List<NavigationInstruction>,
     startNode: NodeFeature?,
     endNode: NodeFeature?,
     onClose: () -> Unit
@@ -1162,7 +1228,123 @@ fun InstructionsSheet(
                         else
                             Text("${index + 1}", color = Color.White, fontWeight = FontWeight.Bold)
                     }
-                    Text(instruction, Modifier.weight(1f))
+                    Text(instruction.text, Modifier.weight(1f)) // <-- FIX: Add .text
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TurnByTurnCard(
+    currentInstruction: String,
+    currentIndex: Int,
+    totalInstructions: Int,
+    totalDistanceMeters: Double,
+    etaMinutes: Int,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    onViewList: () -> Unit,
+    onExit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(12.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // ── Top Row: Step-by-Step Instructions ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(onClick = onPrev, enabled = currentIndex > 0) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Previous Step",
+                        tint = if (currentIndex > 0) MaterialTheme.colorScheme.primary else Color.Gray
+                    )
+                }
+
+                Text(
+                    text = currentInstruction.ifEmpty { "Arrived at destination" },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                )
+
+                IconButton(onClick = onNext, enabled = currentIndex < totalInstructions - 1) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Next Step",
+                        tint = if (currentIndex < totalInstructions - 1) MaterialTheme.colorScheme.primary else Color.Gray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(thickness = DividerDefaults.Thickness, color = DividerDefaults.color)
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // ── Bottom Row: Quick Actions & Stats ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onExit) {
+                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Exit", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+
+                // ==========================================
+                // NEW: Distance & ETA Badge
+                // ==========================================
+                val distanceText = if (totalDistanceMeters > 1000) {
+                    // String.format("%.1f km", totalDistanceMeters / 1000.0)
+                    String.format(Locale.US, "%.1f km", totalDistanceMeters / 1000.0)
+
+                } else {
+                    "${totalDistanceMeters.toInt()} m"
+                }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.DirectionsWalk,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "$etaMinutes min  •  $distanceText",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+                // ==========================================
+
+                TextButton(onClick = onViewList) {
+                    Icon(Icons.Default.FormatListNumbered, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Steps (${currentIndex + 1}/$totalInstructions)", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
