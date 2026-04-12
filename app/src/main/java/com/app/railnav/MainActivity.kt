@@ -114,6 +114,8 @@ fun PathfindingScreen(
                 allNodes = uiState.allNodeFeatures,
                 onMarkerTap = { mainViewModel.onMarkerTapped(it) },
                 userGpsLocation = uiState.userGpsLocation,
+                isTrackingModeActive = uiState.isTrackingModeActive,
+                onDisableTracking = { mainViewModel.disableTrackingMode() },
                 startNode = uiState.startNode
             )
 

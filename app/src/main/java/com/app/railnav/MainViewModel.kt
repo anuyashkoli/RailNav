@@ -29,6 +29,7 @@ data class MainUiState(
 
     // ── location ────────────────────────────────────────────────────────────
     val userGpsLocation: GeoPoint? = null,
+    val isTrackingModeActive: Boolean = false, // <-- NEW ADDITION
     val nearestNodeCandidates: List<NodeFeature> = emptyList(),
     val showNodeSelectionDialog: Boolean = false,
 
@@ -335,8 +336,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onGpsButtonClicked() {
         forceNextLocationPrompt = true
-        // If we already have a location cached, trigger the dialog immediately
+        // Turn tracking mode ON when they explicitly hit the GPS button
+        _uiState.value = _uiState.value.copy(isTrackingModeActive = true)
         _uiState.value.userGpsLocation?.let { onLocationReceived(it) }
+    }
+
+    fun disableTrackingMode() {
+        // Turn tracking mode OFF (called when the user touches the map)
+        if (_uiState.value.isTrackingModeActive) {
+            _uiState.value = _uiState.value.copy(isTrackingModeActive = false)
+        }
     }
 
     fun clearRoute() {
