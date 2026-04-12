@@ -119,7 +119,7 @@ fun MapView(
                     outlinePaint.color = when {
                         isEscalator -> Color.parseColor("#9C27B0") // Purple for Escalators
                         isStair -> Color.parseColor("#FF0800") // Red for Stairs
-                        else -> Color.parseColor("#70AEFF") // IDE File Text Blue
+                        else -> Color.parseColor("#EED202") // IDE File Text Blue
                     }
                 }
                 view.overlays.add(polyline)

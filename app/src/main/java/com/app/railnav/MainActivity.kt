@@ -42,7 +42,10 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Accessible
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.ui.text.style.TextAlign
 import com.google.android.gms.common.api.ResolvableApiException
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -210,9 +213,9 @@ fun PathfindingScreen(
                                 try {
                                     val intentSenderRequest = IntentSenderRequest.Builder(resolvableException.resolution).build()
                                     settingResultRequest.launch(intentSenderRequest)
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     // Fallback just in case Google Play Services crashes
-                                    context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                                 }
                             }
                         )
@@ -230,16 +233,26 @@ fun PathfindingScreen(
                     .padding(end = 16.dp)
             )
 
-            // ── View Route FAB ─────────────────────────────────────────────
-            if (uiState.calculatedPath != null) {
-                ExtendedFloatingActionButton(
-                    onClick = { showInstructions = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    icon = { Icon(Icons.Default.Directions, null) },
-                    text = { Text("View Route") }
+            // ── Dynamic Turn-By-Turn Banner ────────────────────────────────
+            AnimatedVisibility(
+                visible = uiState.calculatedPath != null,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            ) {
+                // Ensure we don't crash if instructions are still generating
+                val currentText = uiState.instructions.getOrNull(uiState.currentInstructionIndex) ?: "Loading steps..."
+
+                TurnByTurnCard(
+                    currentInstruction = currentText,
+                    currentIndex = uiState.currentInstructionIndex,
+                    totalInstructions = uiState.instructions.size,
+                    onNext = { mainViewModel.nextInstruction() },
+                    onPrev = { mainViewModel.prevInstruction() },
+                    onViewList = { showInstructions = true },
+                    onExit = { mainViewModel.clearRoute() }
                 )
             }
 
@@ -1212,6 +1225,84 @@ fun InstructionsSheet(
                             Text("${index + 1}", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                     Text(instruction, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TurnByTurnCard(
+    currentInstruction: String,
+    currentIndex: Int,
+    totalInstructions: Int,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    onViewList: () -> Unit,
+    onExit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(12.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // ── Top Row: Step-by-Step Instructions ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(onClick = onPrev, enabled = currentIndex > 0) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack, // FIX: Updated to AutoMirrored
+                        contentDescription = "Previous Step",
+                        tint = if (currentIndex > 0) MaterialTheme.colorScheme.primary else Color.Gray
+                    )
+                }
+
+                Text(
+                    text = currentInstruction.ifEmpty { "Arrived at destination" },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                )
+
+                IconButton(onClick = onNext, enabled = currentIndex < totalInstructions - 1) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward, // FIX: Updated to AutoMirrored
+                        contentDescription = "Next Step",
+                        tint = if (currentIndex < totalInstructions - 1) MaterialTheme.colorScheme.primary else Color.Gray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(thickness = DividerDefaults.Thickness, color = DividerDefaults.color)
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // ── Bottom Row: Quick Actions ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onExit) {
+                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Exit", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+
+                TextButton(onClick = onViewList) {
+                    Icon(Icons.Default.FormatListNumbered, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Steps (${currentIndex + 1}/$totalInstructions)", fontWeight = FontWeight.SemiBold)
                 }
             }
         }

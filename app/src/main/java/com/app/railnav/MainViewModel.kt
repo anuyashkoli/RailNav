@@ -26,6 +26,7 @@ data class MainUiState(
     val isLoading: Boolean = true,
     val isAccessibleRoutePreferred: Boolean = false,
     val activeSelectionField: SelectionField = SelectionField.START,
+    val currentInstructionIndex: Int = 0,
 
     // ── legacy manual-node search (used in advanced mode) ───────────────────
     val searchQuery: String = "",
@@ -262,7 +263,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     calculatedPath  = result.first,
                     instructions    = result.second,
                     pathBoundingBox = result.third,
-                    isLoading       = false
+                    isLoading       = false,
+                    currentInstructionIndex = 0 //
                 )
             } catch (_: Exception) { // FIX: Removed unused 'e' parameter
                 _uiState.value = _uiState.value.copy(
@@ -405,7 +407,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             startNode = null,
             endNode = null,
             selectedTrain = null,
-            selectedDestination = null
+            selectedDestination = null,
+            currentInstructionIndex = 0
         )
     }
 
@@ -498,4 +501,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    fun nextInstruction() {
+        val s = _uiState.value
+        if (s.currentInstructionIndex < s.instructions.lastIndex) {
+            _uiState.value = s.copy(currentInstructionIndex = s.currentInstructionIndex + 1)
+        }
+    }
+
+    fun prevInstruction() {
+        val s = _uiState.value
+        if (s.currentInstructionIndex > 0) {
+            _uiState.value = s.copy(currentInstructionIndex = s.currentInstructionIndex - 1)
+        }
+    }
+
 }
