@@ -388,6 +388,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+
+        // ====================================================================
+        //  LIVE ETA & DISTANCE COUNTDOWN
+        // ====================================================================
+        val currentPath = _uiState.value.calculatedPath
+        if (currentPath != null && currentPath.isNotEmpty()) {
+            // 1. Find where the user is currently located on the path
+            val closestNodeIndex = currentPath.indices.minByOrNull { i ->
+                GeoPoint(currentPath[i].coordinates[1], currentPath[i].coordinates[0]).distanceToAsDouble(location)
+            } ?: 0
+
+            // 2. Start with the distance from the user to the path
+            var remainingDist = location.distanceToAsDouble(
+                GeoPoint(currentPath[closestNodeIndex].coordinates[1], currentPath[closestNodeIndex].coordinates[0])
+            )
+
+            // 3. Add up the rest of the path to the destination
+            for (i in closestNodeIndex until currentPath.size - 1) {
+                val p1 = GeoPoint(currentPath[i].coordinates[1], currentPath[i].coordinates[0])
+                val p2 = GeoPoint(currentPath[i+1].coordinates[1], currentPath[i+1].coordinates[0])
+                remainingDist += p1.distanceToAsDouble(p2)
+            }
+
+            val newEta = Math.ceil(remainingDist / 80.0).toInt()
+
+            _uiState.value = _uiState.value.copy(
+                totalRouteDistanceMeters = remainingDist,
+                etaMinutes = if (newEta < 1) 1 else newEta
+            )
+        }
+        // ====================================================================
+
         if (currentState.instructions.isNotEmpty() && currentState.calculatedPath != null) {
             val currentInstruction = currentState.instructions.getOrNull(currentState.currentInstructionIndex)
 
