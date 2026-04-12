@@ -22,6 +22,7 @@ data class MainUiState(
     val instructions: List<String> = emptyList(),
     val pathBoundingBox: BoundingBox? = null,
     val isLoading: Boolean = true,
+    val isAccessibleRoutePreferred: Boolean = false,
 
     // ── legacy manual-node search (used in advanced mode) ───────────────────
     val searchQuery: String = "",
@@ -86,6 +87,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(
             isAdvancedMode = !_uiState.value.isAdvancedMode
         )
+    }
+
+    fun toggleAccessibilityMode() {
+        val currentState = _uiState.value
+        val newMode = !currentState.isAccessibleRoutePreferred
+
+        _uiState.value = currentState.copy(isAccessibleRoutePreferred = newMode)
+
+        // If a route is already drawn, instantly recalculate it with the new accessibility rules
+        if (currentState.startNode != null && currentState.endNode != null) {
+            findPath()
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -229,7 +242,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val result = withContext(Dispatchers.Default) {
-                    val path         = pathfinder.findShortestPath(startId, endId)
+                    val path = pathfinder.findShortestPath(startId, endId, _uiState.value.isAccessibleRoutePreferred)
                     val boundingBox  = calculateBoundingBox(path)
                     val instructions = if (path != null) {
                         DirectionGenerator.generate(path)

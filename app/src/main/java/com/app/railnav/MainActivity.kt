@@ -39,6 +39,7 @@ import org.osmdroid.util.GeoPoint
 import android.app.Activity
 import androidx.activity.result.IntentSenderRequest
 import com.google.android.gms.common.api.ResolvableApiException
+import androidx.compose.material.icons.filled.Accessible
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -218,6 +219,8 @@ fun PathfindingScreen(
                 onSwapNodes = { mainViewModel.swapNodes() },
                 onFacilities = { mainViewModel.showFacilities() },
                 showSwap = uiState.isAdvancedMode,
+                isAccessiblePreferred = uiState.isAccessibleRoutePreferred,
+                onToggleAccessibility = { mainViewModel.toggleAccessibilityMode() },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp)
@@ -853,6 +856,8 @@ fun MapControls(
     onSwapNodes: () -> Unit,
     onFacilities: () -> Unit,
     showSwap: Boolean,
+    isAccessiblePreferred: Boolean,
+    onToggleAccessibility: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -863,6 +868,20 @@ fun MapControls(
             icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
             onClick = onToggleTheme
         )
+
+        FloatingActionButton(
+            onClick = onToggleAccessibility,
+            modifier = Modifier.size(48.dp),
+            containerColor = if (isAccessiblePreferred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Accessible,
+                contentDescription = "Accessible Route Only",
+                tint = if (isAccessiblePreferred) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
         MapControlButton(
             icon = Icons.Default.MedicalServices,
             onClick = onFacilities
