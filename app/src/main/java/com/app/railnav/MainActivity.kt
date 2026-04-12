@@ -125,6 +125,7 @@ fun PathfindingScreen(
                 userGpsLocation = uiState.userGpsLocation,
                 isTrackingModeActive = uiState.isTrackingModeActive,
                 onDisableTracking = { mainViewModel.disableTrackingMode() },
+                isDarkTheme = isDarkTheme,
                 startNode = uiState.startNode
             )
 
@@ -828,7 +829,7 @@ fun AdvancedSearchCard(
                 onActiveClick = { mainViewModel.setActiveSelectionField(SelectionField.START) }, // NEW
                 onNodeSelected = onStartNodeSelected,
                 onClearSelection = onClearStartNode,
-                iconTint = Color(0xFF4CAF50)
+                iconTint = MaterialTheme.colorScheme.primary
             )
             ModernNodeSelector(
                 label = "Destination",
@@ -839,7 +840,7 @@ fun AdvancedSearchCard(
                 onActiveClick = { mainViewModel.setActiveSelectionField(SelectionField.END) }, // NEW
                 onNodeSelected = onEndNodeSelected,
                 onClearSelection = onClearEndNode,
-                iconTint = Color(0xFFF44336)
+                iconTint = MaterialTheme.colorScheme.error
             )
 
             OutlinedTextField(
@@ -1226,9 +1227,9 @@ fun InstructionsSheet(
                                 modifier = Modifier.size(16.dp)
                             )
                         else
-                            Text("${index + 1}", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("${index + 1}", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
-                    Text(instruction.text, Modifier.weight(1f)) // <-- FIX: Add .text
+                    Text(instruction.text, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface) // <-- FIX: Add .text
                 }
             }
         }
@@ -1268,7 +1269,7 @@ fun TurnByTurnCard(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Previous Step",
-                        tint = if (currentIndex > 0) MaterialTheme.colorScheme.primary else Color.Gray
+                        tint = if (currentIndex > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                     )
                 }
 
@@ -1284,7 +1285,7 @@ fun TurnByTurnCard(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Next Step",
-                        tint = if (currentIndex < totalInstructions - 1) MaterialTheme.colorScheme.primary else Color.Gray
+                        tint = if (currentIndex < totalInstructions - 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                     )
                 }
             }

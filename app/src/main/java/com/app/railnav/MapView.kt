@@ -40,6 +40,7 @@ fun MapView(
     userGpsLocation: GeoPoint?,
     isTrackingModeActive: Boolean,
     onDisableTracking: () -> Unit,
+    isDarkTheme: Boolean,
     @Suppress("UNUSED_PARAMETER") startNode: NodeFeature?
 ) {
     val context = LocalContext.current
@@ -68,6 +69,34 @@ fun MapView(
         update = { view ->
             // Clear old overlays but keep MapEventsOverlay
             if (view.overlays.size > 1) view.overlays.subList(1, view.overlays.size).clear()
+
+            // =================================================================
+            // NEW: DYNAMIC MAP STYLING (DARK MODE)
+            // =================================================================
+            if (isDarkTheme) {
+                // Creates a sleek, dark-blue inverted look (Standard Dark Mode)
+                val inverseMatrix = android.graphics.ColorMatrix(floatArrayOf(
+                    -1.0f,  0.0f,  0.0f,  0.0f, 255.0f,
+                    0.0f, -1.0f,  0.0f,  0.0f, 255.0f,
+                    0.0f,  0.0f, -1.0f,  0.0f, 255.0f,
+                    0.0f,  0.0f,  0.0f,  1.0f,   0.0f
+                ))
+
+                // Optional: Tint it slightly blue so it's not purely harsh black/white
+                val tintMatrix = android.graphics.ColorMatrix(floatArrayOf(
+                    0.8f, 0.0f, 0.0f, 0.0f, 0.0f, // Red
+                    0.0f, 0.9f, 0.0f, 0.0f, 0.0f, // Green
+                    0.0f, 0.0f, 1.2f, 0.0f, 0.0f, // Blue
+                    0.0f, 0.0f, 0.0f, 1.0f, 0.0f  // Alpha
+                ))
+
+                inverseMatrix.postConcat(tintMatrix)
+                val filter = android.graphics.ColorMatrixColorFilter(inverseMatrix)
+                view.overlayManager.tilesOverlay.setColorFilter(filter)
+            } else {
+                // Light Mode: Remove any filters to show standard map
+                view.overlayManager.tilesOverlay.setColorFilter(null)
+            }
 
             val touchOverlay = object : Overlay() {
                 override fun onTouchEvent(event: MotionEvent?, mapView: MapView?): Boolean {
