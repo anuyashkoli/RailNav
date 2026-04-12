@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -38,8 +37,9 @@ import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import android.app.Activity
 import androidx.activity.result.IntentSenderRequest
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Accessible
 import com.google.android.gms.common.api.ResolvableApiException
-import androidx.compose.material.icons.filled.Accessible
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -876,7 +876,7 @@ fun MapControls(
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Accessible,
+                imageVector = Icons.AutoMirrored.Filled.Accessible,
                 contentDescription = "Accessible Route Only",
                 tint = if (isAccessiblePreferred) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
             )
