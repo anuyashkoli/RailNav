@@ -97,7 +97,7 @@ fun MapView(
                     outlinePaint.color = when {
                         isEscalator -> Color.parseColor("#9C27B0") // Purple for Escalators
                         isStair -> Color.parseColor("#FF0800") // Red for Stairs
-                        else -> Color.parseColor("#70AEFF") // IDE Bulb Yellow
+                        else -> Color.parseColor("#70EFF") // IDE Bulb Yellow
                     }
                 }
                 view.overlays.add(polyline)
@@ -158,13 +158,13 @@ fun MapView(
                 val nodeName = node.properties.node_name?.uppercase() ?: ""
 
                 val searchStr = "$nodeType $nodeName"
+                val isEntryExit = (nodeType == "ENTRY/EXIT")
 
-                // IGNORE: Stairs/Escalators (path is drawn above) and strict "FACILITY" nodes
-                if (searchStr.contains("STAIR") || searchStr.contains("ESCALATOR") || nodeType == "FACILITY") {
+                // FIX: Never ignore an ENTRY/EXIT node, even if it has "STAIR" in the name!
+                // Only ignore internal stairs/escalators and generic OSM facilities.
+                if (!isEntryExit && (searchStr.contains("STAIR") || searchStr.contains("ESCALATOR") || nodeType == "FACILITY")) {
                     return@forEach
                 }
-
-                val isEntryExit = (nodeType == "ENTRY/EXIT")
 
                 val marker = Marker(view).apply {
                     position = GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
