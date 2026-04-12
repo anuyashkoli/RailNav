@@ -36,6 +36,9 @@ import com.app.railnav.data.*
 import com.app.railnav.ui.theme.RailNavTheme
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
+import android.app.Activity
+import androidx.activity.result.IntentSenderRequest
+import com.google.android.gms.common.api.ResolvableApiException
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,7 +79,15 @@ fun PathfindingScreen(
     ) { granted ->
         if (granted) locationHandler.startLocationUpdates() else showPermissionDialog = true
     }
-
+    val settingResultRequest = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            // The user clicked "Turn on" in the Google dialog!
+            mainViewModel.onGpsButtonClicked()
+            locationHandler.startLocationUpdates()
+        }
+    }
     DisposableEffect(Unit) { onDispose { locationHandler.stopLocationUpdates() } }
 
     LaunchedEffect(uiState.instructions) {
@@ -180,12 +191,24 @@ fun PathfindingScreen(
                 onToggleTheme = { isDarkTheme = !isDarkTheme },
                 onMyLocationClick = {
                     if (locationHandler.hasLocationPermission()) {
-                        if (locationHandler.isLocationEnabled()) {
-                            mainViewModel.onGpsButtonClicked()
-                            locationHandler.startLocationUpdates()
-                        } else {
-                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-                        }
+                        // NEW LOGIC: Ask Google to check settings
+                        locationHandler.checkLocationSettingsAndStart(
+                            onSuccess = {
+                                // GPS is already on
+                                mainViewModel.onGpsButtonClicked()
+                                locationHandler.startLocationUpdates()
+                            },
+                            onResolutionRequired = { resolvableException ->
+                                // GPS is off. Launch the beautiful Google bottom sheet dialog!
+                                try {
+                                    val intentSenderRequest = IntentSenderRequest.Builder(resolvableException.resolution).build()
+                                    settingResultRequest.launch(intentSenderRequest)
+                                } catch (e: Exception) {
+                                    // Fallback just in case Google Play Services crashes
+                                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                                }
+                            }
+                        )
                     } else {
                         permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     }
