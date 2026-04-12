@@ -1,6 +1,5 @@
 package com.app.railnav
 
-import android.graphics.Color
 import android.view.View
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
@@ -12,9 +11,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.app.railnav.data.*
 import kotlinx.coroutines.delay
-import org.osmdroid.bonuspack.clustering.RadiusMarkerClusterer
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -52,6 +53,7 @@ fun MapView(
         modifier = modifier,
         factory = { mapView },
         update = { view ->
+            // Clear old overlays but keep MapEventsOverlay
             if (view.overlays.size > 1) view.overlays.subList(1, view.overlays.size).clear()
 
             // 1. Draw Edges
@@ -84,14 +86,18 @@ fun MapView(
                         })
                     }
                 }
+
+                // Add START and END markers. Tag them in 'relatedObject' so they never get hidden by zoom.
                 view.overlays.add(Marker(view).apply {
                     position = GeoPoint(path.first().coordinates[1], path.first().coordinates[0])
                     icon = MapUtils.getSystemMarker(context, "START")
+                    relatedObject = "SYSTEM_MARKER"
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 })
                 view.overlays.add(Marker(view).apply {
                     position = GeoPoint(path.last().coordinates[1], path.last().coordinates[0])
                     icon = MapUtils.getSystemMarker(context, "END")
+                    relatedObject = "SYSTEM_MARKER"
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 })
             }
@@ -101,36 +107,42 @@ fun MapView(
                 view.overlays.add(Marker(view).apply {
                     position = gpsLoc
                     icon = MapUtils.getSystemMarker(context, "GPS")
+                    relatedObject = "SYSTEM_MARKER"
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                 })
             }
 
-            // 4. Initialize Clusterer
-            val clusterer = RadiusMarkerClusterer(context).apply {
-                textPaint.apply {
-                    color = Color.WHITE
-                    textSize = 40f
-                    isFakeBoldText = true
-                }
-            }
-
-            // 5. Draw All Nodes (Facilities will be 18dp icons, generic paths will be tiny 6dp dots)
+            // 4. Draw All Nodes with Initial Zoom Visibility Logic
+            val currentZoom = view.zoomLevelDouble
             allNodes.forEach { node ->
                 val marker = Marker(view).apply {
                     position = GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0])
 
-                    // The icon logic is now completely hidden inside MapUtils!
-                    icon = MapUtils.getNodeIcon(context, node.properties.node_type, nodeName = node.properties.node_name, currentThemeColor)
+                    // Combine Type and Name to figure out what this node is
+                    val searchStr = "${node.properties.node_type ?: ""} ${node.properties.node_name ?: ""}".uppercase()
+
+                    // Save this string in the marker so our MapListener can read it later when zooming
+                    relatedObject = searchStr
+
+                    // Get the icon
+                    icon = MapUtils.getNodeIcon(context, searchStr, currentThemeColor)
+
+                    // Determine INITIAL visibility based on current zoom
+                    isEnabled = when {
+                        searchStr.contains("ENTRY") || searchStr.contains("EXIT") -> true // Tier 1: Always visible
+                        searchStr.contains("LIFT") || searchStr.contains("ELEVATOR") || searchStr.contains("TICKET") -> currentZoom >= 17.5 // Tier 2
+                        searchStr.contains("STAIR") || searchStr.contains("ESCALATOR") -> currentZoom >= 18.5 // Tier 3
+                        else -> currentZoom >= 19.5 // Tier 4: Generic dots
+                    }
 
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                     title = node.properties.node_name
                     setOnMarkerClickListener { _, _ -> onMarkerTap(node); true }
                 }
-                clusterer.add(marker)
-            }
 
-            // 6. Add Clusterer to map
-            view.overlays.add(clusterer)
+                // Add directly to the map (NO CLUSTERER)
+                view.overlays.add(marker)
+            }
 
             view.invalidate()
         }
@@ -149,12 +161,42 @@ fun rememberMapViewWithLifecycle(onMapTap: (GeoPoint) -> Unit): MapView {
             minZoomLevel = 15.0
             controller.setZoom(19.0)
             controller.setCenter(GeoPoint(19.186, 72.975))
+
+            // Handle Tap Events
             overlays.add(0, MapEventsOverlay(object : MapEventsReceiver {
                 override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean { p?.let { onMapTap(it) }; return true }
                 override fun longPressHelper(p: GeoPoint?): Boolean = false
             }))
+
+            // NEW: Listen for Zoom changes to progressively reveal markers
+            addMapListener(object : MapListener {
+                override fun onScroll(event: ScrollEvent?): Boolean = false
+                override fun onZoom(event: ZoomEvent?): Boolean {
+                    val zoom = event?.zoomLevel ?: return false
+
+                    // Loop through all markers currently on the map
+                    overlays.filterIsInstance<Marker>().forEach { marker ->
+                        val typeStr = (marker.relatedObject as? String) ?: return@forEach
+
+                        if (typeStr == "SYSTEM_MARKER") {
+                            marker.isEnabled = true // Start, End, and GPS dots never disappear
+                        } else {
+                            // Dynamically toggle visibility based on zoom thresholds
+                            marker.isEnabled = when {
+                                typeStr.contains("ENTRY") || typeStr.contains("EXIT") -> true
+                                typeStr.contains("LIFT") || typeStr.contains("ELEVATOR") || typeStr.contains("TICKET") -> zoom >= 17.5
+                                typeStr.contains("STAIR") || typeStr.contains("ESCALATOR") -> zoom >= 18.5
+                                else -> zoom >= 19.5
+                            }
+                        }
+                    }
+                    invalidate() // Redraw the map to apply the visibility changes
+                    return true
+                }
+            })
         }
     }
+
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->

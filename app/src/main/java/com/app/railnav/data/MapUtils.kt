@@ -37,7 +37,6 @@ object MapUtils {
         iconCache.get(type)?.let { return it }
 
         val drawable = when (type) {
-            // Using R.drawable.location to match your uploaded XML file
             "START" -> getThemedIcon(context, com.app.railnav.R.drawable.location, Color.parseColor("#4CAF50"), 42)
             "END" -> getThemedIcon(context, com.app.railnav.R.drawable.location, Color.parseColor("#F44336"), 42)
             "GPS" -> getThemedIcon(context, com.app.railnav.R.drawable.gps_on, Color.parseColor("#2196F3"), 28)
@@ -50,17 +49,14 @@ object MapUtils {
 
     /**
      * Handles all station facility nodes and generic pathways
+     * FIX: Now correctly accepts the pre-combined searchStr from MapView
      */
-    fun getNodeIcon(context: Context, nodeType: String?, nodeName: String?, themeColor: Int): Drawable {
-        // Combine Type and Name to ensure we don't miss anything if the DB has null/weird types
-        val searchStr = "${nodeType ?: ""} ${nodeName ?: ""}".uppercase()
-
+    fun getNodeIcon(context: Context, searchStr: String, themeColor: Int): Drawable {
         return when {
             searchStr.contains("ENTRY") || searchStr.contains("EXIT") ->
                 getThemedIcon(context, com.app.railnav.R.drawable.entryexit, themeColor, 28)
 
             searchStr.contains("STAIR") ->
-                // Note: Ensure your stair XML file is actually named stairs.xml! (Change this if it's stairway.xml)
                 getThemedIcon(context, com.app.railnav.R.drawable.stairs, themeColor, 28)
 
             searchStr.contains("LIFT") || searchStr.contains("ELEVATOR") ->
