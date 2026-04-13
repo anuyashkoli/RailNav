@@ -102,6 +102,13 @@ fun PathfindingScreen(
             // The user clicked "Turn on" in the Google dialog!
             mainViewModel.onGpsButtonClicked()
             locationHandler.startLocationUpdates()
+        } else {
+            // The user clicked "No Thanks" — guide them to use the map instead
+            android.widget.Toast.makeText(
+                context,
+                "No worries! Tap anywhere on the map to set your starting point.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
         }
     }
     DisposableEffect(Unit) { onDispose { locationHandler.stopLocationUpdates() } }
