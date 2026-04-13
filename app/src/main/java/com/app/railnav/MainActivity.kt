@@ -106,9 +106,8 @@ fun PathfindingScreen(
     }
     DisposableEffect(Unit) { onDispose { locationHandler.stopLocationUpdates() } }
 
-    LaunchedEffect(uiState.instructions) {
-        if (uiState.instructions.isNotEmpty()) showInstructions = true
-    }
+    // Removed: No longer auto-show the full step list sheet.
+    // The compact TurnByTurnCard at the bottom is enough.
 
     // FIX: Added the BackHandler to intercept the back button and clear the route map!
     BackHandler(enabled = uiState.calculatedPath != null) {
@@ -158,7 +157,6 @@ fun PathfindingScreen(
                             onEndNodeSelected = { mainViewModel.onEndNodeSelected(it) },
                             onFindPath = {
                                 mainViewModel.findPath()
-                                scope.launch { showInstructions = true }
                             },
                             onSearchQueryChanged = { mainViewModel.onSearchQueryChanged(it) },
                             onSwitchToSimpleMode = { mainViewModel.toggleAdvancedMode() },
@@ -177,7 +175,6 @@ fun PathfindingScreen(
                             onShowTrains = { mainViewModel.openTrainSheet() },
                             onFindPath = {
                                 mainViewModel.findPath()
-                                scope.launch { showInstructions = true }
                             },
                             onSwitchToAdvancedMode = { mainViewModel.toggleAdvancedMode() },
                             onClearStartNode = { mainViewModel.clearStartNode() },
@@ -201,6 +198,9 @@ fun PathfindingScreen(
                             }
                         }
                     )
+
+                    // ── Map Legend ──────────────────────────────────────────
+                    MapLegend()
 
                     if (!uiState.isAdvancedMode && uiState.destinationSuggestions.isNotEmpty()) {
                         StationSuggestionList(
@@ -324,7 +324,14 @@ fun PathfindingScreen(
                     nearestNodes = uiState.nearestNodeCandidates,
                     userLocation = uiState.userGpsLocation,
                     onNodeSelected = { mainViewModel.confirmStartNode(it) },
-                    onDismiss = { mainViewModel.dismissNodeSelectionDialog() }
+                    onDismiss = {
+                        mainViewModel.dismissNodeSelectionDialog()
+                        android.widget.Toast.makeText(
+                            context,
+                            "You can also tap directly on the map to set your start point.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 )
             }
 
@@ -335,7 +342,14 @@ fun PathfindingScreen(
                         showPermissionDialog = false
                         permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     },
-                    onDismiss = { showPermissionDialog = false }
+                    onDismiss = {
+                        showPermissionDialog = false
+                        android.widget.Toast.makeText(
+                            context,
+                            "You can tap the map to set your location manually.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 )
             }
 
@@ -452,6 +466,85 @@ fun FacilityQuickChips(onChipSelected: (String) -> Unit) {
                 elevation = FilterChipDefaults.filterChipElevation(elevation = 4.dp)
             )
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Map Legend (collapsible)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun MapLegend(modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+
+    AnimatedVisibility(
+        visible = true,
+        modifier = modifier.padding(start = 16.dp, end = 72.dp, bottom = 4.dp)
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+            shape = RoundedCornerShape(12.dp),
+            shadowElevation = 2.dp,
+            modifier = Modifier.clickable { expanded = !expanded }
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Map,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Map Legend",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Icon(
+                        if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                AnimatedVisibility(visible = expanded) {
+                    Column(
+                        modifier = Modifier.padding(top = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        LegendItem(color = Color(0xFFEED202), label = "Walkway / Path")
+                        LegendItem(color = Color(0xFFFF0800), label = "Stairs")
+                        LegendItem(color = Color(0xFF9C27B0), label = "Escalator")
+                        LegendItem(color = Color(0xFF1976D2), label = "Active Route")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendItem(color: Color, label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(20.dp)
+                .height(4.dp)
+                .background(color, RoundedCornerShape(2.dp))
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -1233,10 +1326,10 @@ fun LocationPermissionDialog(onGrant: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.LocationOff, null) },
-        title = { Text("Location Permission Required") },
-        text = { Text("Grant location permission to show your position and navigate.") },
-        confirmButton = { TextButton(onClick = onGrant) { Text("Grant") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        title = { Text("Location Permission") },
+        text = { Text("Grant location to auto-detect your position, or tap the map manually to set your start point.") },
+        confirmButton = { TextButton(onClick = onGrant) { Text("Grant Permission") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Use Map Instead") } }
     )
 }
 
@@ -1380,7 +1473,7 @@ fun NodeSelectionDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Tap Map Instead") } }
     )
 }
 
