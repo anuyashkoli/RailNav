@@ -2143,34 +2143,48 @@ fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinute
         modifier = modifier.clickable(enabled = train != null) { train?.let { onClick(it) } }
     ) {
         Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-            Text(
-                text = when (direction) {
-                    TrainDirection.UP -> "UP"
-                    TrainDirection.DOWN -> "DOWN"
-                    TrainDirection.HARBOUR -> "HARBOUR"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.ExtraBold
-            )
-            Spacer(Modifier.height(4.dp))
-
             if (train != null) {
                 var diff = train.departureMinutes - currentMinutes
                 if (diff < -720) diff += 1440
 
-                val statusText = if (diff <= 0) "Now" else "${diff}m"
-                val statusColor = if (diff <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                val statusColor = if (diff <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                 val typeColor = Color(train.type.color)
 
+                // ── Top row: Destination + PF ──
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = train.destination,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Text(
+                        text = "PF ${train.platformAtThane}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(Modifier.height(2.dp))
+
+                // ── Middle: Departure time ──
                 Text(
                     train.departureTimeString,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(Modifier.height(4.dp))
 
+                // ── Bottom row: Type badge + Timer ──
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2189,23 +2203,44 @@ fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinute
                             maxLines = 1
                         )
                     }
-                    Text(
-                        statusText,
-                        color = statusColor,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.labelMedium
-                    )
+                    if (diff <= 0) {
+                        Text(
+                            "Now",
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = statusColor
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                "${diff} min",
+                                color = statusColor,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
                 }
-
-                Spacer(Modifier.height(2.dp))
-
-                Text(
-                    "PF ${train.platformAtThane}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             } else {
+                // ── Empty state ──
+                Text(
+                    text = when (direction) {
+                        TrainDirection.UP -> "UP"
+                        TrainDirection.DOWN -> "DOWN"
+                        TrainDirection.HARBOUR -> "HARBOUR"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(Modifier.height(4.dp))
                 Text(
                     "No trains",
                     style = MaterialTheme.typography.bodySmall,
