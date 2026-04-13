@@ -552,29 +552,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         if (matchedNodes.isEmpty()) return
 
-        val closestNode = matchedNodes.minByOrNull { node ->
-            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(referenceLocation)
+        var finalStartNode = currentState.startNode
+        if (finalStartNode == null) {
+            finalStartNode = allNodes.minByOrNull {
+                GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(referenceLocation)
+            }
         }
+        if (finalStartNode == null) return
 
-        if (closestNode != null) {
-            var finalStartNode = currentState.startNode
+        val startId = finalStartNode.properties.node_id
 
-            // FIX: Removed the redundant '!= null' warning by knowing referenceLocation enforces it.
-            if (finalStartNode == null) {
-                finalStartNode = allNodes.minByOrNull {
-                    GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(currentState.userGpsLocation!!)
+        _uiState.value = currentState.copy(isLoading = true)
+
+        viewModelScope.launch {
+            val bestTarget = withContext(Dispatchers.Default) {
+                var shortestPathCost = Double.MAX_VALUE
+                var closestFacilityNode: NodeFeature? = null
+
+                // FIX: Calculate actual walking distance using Pathfinder instead of straight-line distance
+                for (targetNode in matchedNodes) {
+                    val targetId = targetNode.properties.node_id
+                    val path = pathfinder.findShortestPath(startId, targetId, currentState.isAccessibleRoutePreferred)
+
+                    if (path != null && path.size > 1) {
+                        var pathDistance = 0.0
+                        for (i in 0 until path.size - 1) {
+                            val p1 = GeoPoint(path[i].coordinates[1], path[i].coordinates[0])
+                            val p2 = GeoPoint(path[i+1].coordinates[1], path[i+1].coordinates[0])
+                            pathDistance += p1.distanceToAsDouble(p2)
+                        }
+
+                        if (pathDistance < shortestPathCost) {
+                            shortestPathCost = pathDistance
+                            closestFacilityNode = targetNode
+                        }
+                    }
+                }
+
+                // Fallback to straight-line distance if no valid path exists (e.g. disconnected nodes)
+                closestFacilityNode ?: matchedNodes.minByOrNull { node ->
+                    GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(referenceLocation)
                 }
             }
 
-            _uiState.value = currentState.copy(
-                startNode = finalStartNode,
-                endNode = closestNode,
-                searchQuery = "",
-                searchResults = emptyList()
-            )
-
-            if (finalStartNode != null) {
-                findPath()
+            if (bestTarget != null) {
+                _uiState.value = _uiState.value.copy(
+                    startNode = finalStartNode,
+                    endNode = bestTarget,
+                    searchQuery = "",
+                    searchResults = emptyList()
+                )
+                findPath() // This will draw the final route and turn off the loading spinner
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
     }
