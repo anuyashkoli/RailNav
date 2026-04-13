@@ -2,6 +2,7 @@ package com.app.railnav
 
 import android.Manifest
 import android.os.Bundle
+import java.util.Calendar
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,6 +49,7 @@ import com.google.android.gms.common.api.ResolvableApiException
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -168,7 +170,8 @@ fun PathfindingScreen(
                                 scope.launch { showInstructions = true }
                             },
                             onSwitchToAdvancedMode = { mainViewModel.toggleAdvancedMode() },
-                            onClearStartNode = { mainViewModel.clearStartNode() }
+                            onClearStartNode = { mainViewModel.clearStartNode() },
+                            onOpenLiveBoard = { mainViewModel.openLiveBoard() },
                         )
                     }
 
@@ -349,6 +352,22 @@ fun PathfindingScreen(
                     )
                 }
             }
+
+            // ── Live Station Dashboard Sheet ───────────────────────────────
+            if (uiState.showLiveBoardSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { mainViewModel.closeLiveBoard() },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxHeight(0.85f) // Makes it tall but leaves the map visible
+                ) {
+                    LiveTrainDashboardSheet(
+                        currentDirection = uiState.liveBoardDirection,
+                        onDirectionChanged = { mainViewModel.setLiveBoardDirection(it) },
+                        onClose = { mainViewModel.closeLiveBoard() }
+                    )
+                }
+            }
+
         }
     }
 }
@@ -395,13 +414,14 @@ fun FacilityQuickChips(onChipSelected: (String) -> Unit) {
 
 @Composable
 fun TrainDestinationCard(
-    modifier: Modifier = Modifier,
     uiState: MainUiState,
     onQueryChange: (String) -> Unit,
     onShowTrains: () -> Unit,
     onFindPath: () -> Unit,
     onSwitchToAdvancedMode: () -> Unit,
-    onClearStartNode: () -> Unit
+    onClearStartNode: () -> Unit,
+    onOpenLiveBoard: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
@@ -508,6 +528,19 @@ fun TrainDestinationCard(
                     Spacer(Modifier.width(8.dp))
                     Text("Choose a train to ${uiState.selectedDestination}")
                 }
+            }
+
+            OutlinedButton(
+                onClick = onOpenLiveBoard,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(Icons.Default.DynamicFeed, null)
+                Spacer(Modifier.width(8.dp))
+                Text("View Live Station Board", fontWeight = FontWeight.Bold)
             }
 
             Button(
@@ -1482,6 +1515,209 @@ fun DestinationsSheet(
                     )
                     HorizontalDivider()
                 }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Live Train Dashboard
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun LiveTrainDashboardSheet(
+    currentDirection: TrainDirection,
+    onDirectionChanged: (TrainDirection) -> Unit,
+    onClose: () -> Unit
+) {
+    // Ticking clock state
+    var currentTimeFormatted by remember { mutableStateOf("") }
+    var currentMinutes by remember { mutableIntStateOf(TrainRepository.currentMinutes()) }
+
+    // Update the clock every second
+    LaunchedEffect(Unit) {
+        while (true) {
+            val cal = Calendar.getInstance()
+            val hh = String.format(Locale.US, "%02d", cal.get(Calendar.HOUR_OF_DAY))
+            val mm = String.format(Locale.US, "%02d", cal.get(Calendar.MINUTE))
+            val ss = String.format(Locale.US, "%02d", cal.get(Calendar.SECOND))
+            currentTimeFormatted = "$hh:$mm:$ss"
+            currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+            delay(1000)
+        }
+    }
+
+    // Filter and sort trains based on the selected direction
+    val activeTrains = remember(currentDirection, currentMinutes) {
+        TrainRepository.schedule
+            .filter { it.direction == currentDirection }
+            // Filter out trains that departed more than 15 minutes ago to keep the board clean
+            .filter { train ->
+                var diff = train.departureMinutes - currentMinutes
+                if (diff < -720) diff += 1440 // Wrap around midnight
+                diff > -15
+            }
+            .sortedBy { train ->
+                var diff = train.departureMinutes - currentMinutes
+                if (diff < -720) diff += 1440
+                diff
+            }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        // --- Header (Title & Clock) ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("THANE DEPARTURES", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                Text(
+                    text = "Live • $currentTimeFormatted",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, "Close Board")
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // --- Direction Switcher ---
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                TrainDirection.entries.forEach { dir ->
+                    val isSelected = dir == currentDirection
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(4.dp)
+                            .background(
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .clickable { onDirectionChanged(dir) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (dir == TrainDirection.UP) "UP (CSMT)" else "DOWN (Kalyan)",
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // --- Live Train List ---
+        LazyColumn(
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(activeTrains) { train ->
+                LiveTrainCard(train = train, currentMinutes = currentMinutes)
+            }
+        }
+    }
+}
+
+@Composable
+fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int) {
+    // Calculate live countdown
+    var diff = train.departureMinutes - currentMinutes
+    if (diff < -720) diff += 1440 // Midnight wrap-around
+
+    val (statusText, statusColor) = when {
+        diff < 0 -> Pair("Departed", MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+        diff == 0 -> Pair("Now", MaterialTheme.colorScheme.error)
+        diff <= 5 -> Pair("in $diff min", MaterialTheme.colorScheme.error)
+        else -> Pair("in $diff min", MaterialTheme.colorScheme.primary)
+    }
+
+    val typeColor = Color(train.type.color)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Time & Type
+            Column(modifier = Modifier.width(60.dp)) {
+                Text(
+                    text = train.departureTimeString,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = train.type.name, // "FAST", "SLOW"
+                    style = MaterialTheme.typography.labelSmall,
+                    color = typeColor,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            // Destination
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = train.destination.uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (train.via.isNotEmpty()) {
+                    Text(
+                        text = "via ${train.via.last()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Platform & Countdown Badge
+            Column(horizontalAlignment = Alignment.End) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Text(
+                        text = "PF ${train.platformAtThane}",
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor
+                )
             }
         }
     }

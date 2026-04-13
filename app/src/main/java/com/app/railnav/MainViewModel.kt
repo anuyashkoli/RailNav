@@ -13,6 +13,7 @@ import com.app.railnav.data.GraphRepository
 import com.app.railnav.data.NavigationInstruction
 import com.app.railnav.data.NodeFeature
 import com.app.railnav.data.Pathfinder
+import com.app.railnav.data.TrainDirection
 import com.app.railnav.data.TrainRepository
 import com.app.railnav.data.TrainSchedule
 import kotlinx.coroutines.Dispatchers
@@ -69,7 +70,11 @@ data class MainUiState(
     val showFacilitiesSheet: Boolean = false,
 
     val totalRouteDistanceMeters: Double = 0.0,
-    val etaMinutes: Int = 0
+    val etaMinutes: Int = 0,
+
+    // Live Board State
+    val showLiveBoardSheet: Boolean = false,
+    val liveBoardDirection: TrainDirection = TrainDirection.DOWN,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -640,6 +645,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (s.currentInstructionIndex > 0) {
             _uiState.value = s.copy(currentInstructionIndex = s.currentInstructionIndex - 1)
         }
+    }
+
+    // ======================================================================
+    // LIVE BOARD DASHBOARD LOGIC
+    // ======================================================================
+
+    fun openLiveBoard() {
+        _uiState.value = _uiState.value.copy(showLiveBoardSheet = true)
+    }
+
+    fun closeLiveBoard() {
+        _uiState.value = _uiState.value.copy(showLiveBoardSheet = false)
+    }
+
+    fun setLiveBoardDirection(direction: TrainDirection) {
+        _uiState.value = _uiState.value.copy(liveBoardDirection = direction)
     }
 
 }
