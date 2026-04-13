@@ -116,10 +116,14 @@ fun PathfindingScreen(
     // Removed: No longer auto-show the full step list sheet.
     // The compact TurnByTurnCard at the bottom is enough.
 
-    // FIX: Added the BackHandler to intercept the back button and clear the route map!
+    // BackHandler priority: clear route first, then clear selected train
     BackHandler(enabled = uiState.calculatedPath != null) {
         mainViewModel.clearRoute()
         showInstructions = false
+    }
+
+    BackHandler(enabled = uiState.calculatedPath == null && uiState.selectedTrain != null) {
+        mainViewModel.clearSelectedTrain()
     }
 
     RailNavTheme(darkTheme = isDarkTheme) {
@@ -186,6 +190,7 @@ fun PathfindingScreen(
                             onSwitchToAdvancedMode = { mainViewModel.toggleAdvancedMode() },
                             onClearStartNode = { mainViewModel.clearStartNode() },
                             onOpenLiveBoard = { mainViewModel.openLiveBoard() },
+                            onClearTrain = { mainViewModel.clearSelectedTrain() },
                         )
                     }
 
@@ -568,6 +573,7 @@ fun TrainDestinationCard(
     onSwitchToAdvancedMode: () -> Unit,
     onClearStartNode: () -> Unit,
     onOpenLiveBoard: () -> Unit,
+    onClearTrain: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -677,11 +683,11 @@ fun TrainDestinationCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "${train.departureTimeString}  →  ${train.destination}",
                                 fontWeight = FontWeight.SemiBold,
@@ -693,7 +699,29 @@ fun TrainDestinationCard(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                             )
                         }
-                        Icon(Icons.Default.Edit, "Change train", modifier = Modifier.size(16.dp))
+                        Row {
+                            IconButton(
+                                onClick = onClearTrain,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    "Clear train",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                            IconButton(
+                                onClick = { onShowTrains() },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    "Change train",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
             } else if (uiState.selectedDestination != null && uiState.availableTrains.isNotEmpty()) {

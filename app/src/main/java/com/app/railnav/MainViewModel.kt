@@ -179,6 +179,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(showTrainSheet = false)
     }
 
+    fun clearSelectedTrain() {
+        _uiState.value = _uiState.value.copy(
+            selectedTrain = null,
+            endNode = null,
+            calculatedPath = null,
+            instructions = emptyList(),
+            pathBoundingBox = null,
+            currentInstructionIndex = 0,
+            totalRouteDistanceMeters = 0.0,
+            etaMinutes = 0
+        )
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     //  Facilities
     // ══════════════════════════════════════════════════════════════════════
