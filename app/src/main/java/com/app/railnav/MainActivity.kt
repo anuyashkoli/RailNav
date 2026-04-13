@@ -1886,13 +1886,13 @@ fun LiveTrainDashboardSheet(
                     ) {
                         Text(
                             text = when (dir) {
-                                TrainDirection.UP -> "UP (CSMT)"
+                                TrainDirection.UP -> "UP"
                                 TrainDirection.DOWN -> "DOWN"
                                 TrainDirection.HARBOUR -> "HARBOUR"
                             },
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelLarge
                         )
                     }
                 }
@@ -1938,7 +1938,7 @@ fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int, onClick: () -> Unit
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.width(68.dp)) {
+            Column(modifier = Modifier.width(84.dp)) {
                 Text(
                     text = train.departureTimeString,
                     style = MaterialTheme.typography.titleMedium,
@@ -2101,37 +2101,36 @@ fun MiniLiveBoardCard(
             contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth().clickable { onExpand() }, // Expand when tapping the header
+                modifier = Modifier.fillMaxWidth().clickable { onExpand() },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.DragHandle, contentDescription = "Pull up", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Live Next Departures", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
+                    Icon(Icons.Default.DragHandle, contentDescription = "Pull up", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Next Departures", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleSmall)
                 }
                 IconButton(onClick = onClose, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Hide Board")
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 MiniTrainBox(TrainDirection.UP, upTrain, currentMinutes, onTrainSelected, Modifier.weight(1f))
                 MiniTrainBox(TrainDirection.DOWN, downTrain, currentMinutes, onTrainSelected, Modifier.weight(1f))
                 MiniTrainBox(TrainDirection.HARBOUR, harbourTrain, currentMinutes, onTrainSelected, Modifier.weight(1f))
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
         }
     }
 }
 
 @Composable
 fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinutes: Int, onClick: (TrainSchedule) -> Unit, modifier: Modifier = Modifier) {
-    // FIX: Dynamically tint the entire background if a train exists!
     val bgColor = if (train != null) {
         Color(train.type.color).copy(alpha = 0.08f)
     } else {
@@ -2140,13 +2139,13 @@ fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinute
 
     Surface(
         color = bgColor,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         modifier = modifier.clickable(enabled = train != null) { train?.let { onClick(it) } }
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
             Text(
                 text = when (direction) {
-                    TrainDirection.UP -> "UP (CSMT)"
+                    TrainDirection.UP -> "UP"
                     TrainDirection.DOWN -> "DOWN"
                     TrainDirection.HARBOUR -> "HARBOUR"
                 },
@@ -2154,47 +2153,64 @@ fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinute
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.ExtraBold
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
 
             if (train != null) {
                 var diff = train.departureMinutes - currentMinutes
                 if (diff < -720) diff += 1440
 
-                val statusText = if (diff <= 0) "Now" else "in $diff min"
+                val statusText = if (diff <= 0) "Now" else "${diff}m"
                 val statusColor = if (diff <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                 val typeColor = Color(train.type.color)
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(train.departureTimeString, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(6.dp))
+                Text(
+                    train.departureTimeString,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Surface(
-                        color = typeColor.copy(alpha = 0.2f), // Boosted to 20% so it stands out against the 8% background
+                        color = typeColor.copy(alpha = 0.2f),
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
                             text = train.type.displayName,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                             style = MaterialTheme.typography.labelSmall,
                             color = typeColor,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                     }
+                    Text(
+                        statusText,
+                        color = statusColor,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(2.dp))
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    ) {
-                        Text("PF ${train.platformAtThane}", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold)
-                    }
-                    Text(statusText, color = statusColor, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-                }
+                Text(
+                    "PF ${train.platformAtThane}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             } else {
-                Text("No upcoming trains", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "No trains",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
