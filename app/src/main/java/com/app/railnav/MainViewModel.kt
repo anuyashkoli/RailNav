@@ -1,9 +1,20 @@
 package com.app.railnav
 
 import android.app.Application
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.app.railnav.data.*
+import com.app.railnav.data.DirectionGenerator
+import com.app.railnav.data.EdgeFeature
+import com.app.railnav.data.FacilityItem
+import com.app.railnav.data.Graph
+import com.app.railnav.data.GraphNode
+import com.app.railnav.data.GraphRepository
+import com.app.railnav.data.NavigationInstruction
+import com.app.railnav.data.NodeFeature
+import com.app.railnav.data.Pathfinder
+import com.app.railnav.data.TrainRepository
+import com.app.railnav.data.TrainSchedule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -542,15 +553,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (referenceLocation == null) return
 
         val allNodes = currentState.allNodeFeatures
-        val queryLower = keyword.lowercase()
 
         val matchedNodes = allNodes.filter { node ->
             val nodeName = node.properties.node_name?.lowercase() ?: ""
-            val nodeType = node.properties.node_type?.lowercase() ?: ""
-            nodeName.contains(queryLower) || nodeType.contains(queryLower)
+            val nodeType = node.properties.node_type?.uppercase() ?: ""
+
+            when (keyword.lowercase()) {
+                "exit" -> nodeType == "ENTRY/EXIT"
+                "stairs" -> nodeType.contains("STAIRWAY")
+                "ticket", "toilet" -> nodeType == "FACILITY" && nodeName.contains(keyword.lowercase())
+                else -> nodeName.contains(keyword.lowercase()) || nodeType.lowercase().contains(keyword.lowercase())
+            }
         }
 
-        if (matchedNodes.isEmpty()) return
+        if (matchedNodes.isEmpty()) {
+            Toast.makeText(getApplication(), "No facilities found.", Toast.LENGTH_SHORT).show()
+            return
+        }
 
         var finalStartNode = currentState.startNode
         if (finalStartNode == null) {
