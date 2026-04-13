@@ -722,14 +722,15 @@ fun TrainListSheet(
 
             LazyColumn {
                 items(trains) { train ->
+                    val typeColor = Color(train.type.color) // Calculate color here
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 6.dp)
                             .clickable { onTrainSelected(train) },
                         shape = RoundedCornerShape(12.dp),
-                        // FIX: Replaced hardcoded grey with adaptive surfaceVariant
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        // FIX: Tint the main list cards too!
+                        colors = CardDefaults.cardColors(containerColor = typeColor.copy(alpha = 0.08f))
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
@@ -737,7 +738,6 @@ fun TrainListSheet(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.Bottom) {
-                                    // FIX: Removed color = Color.Black, use onSurface
                                     Text(
                                         train.departureTimeString,
                                         fontSize = 22.sp,
@@ -746,12 +746,12 @@ fun TrainListSheet(
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Surface(
-                                        color = Color(train.type.color).copy(alpha = 0.1f),
+                                        color = typeColor.copy(alpha = 0.2f), // Boosted to 20%
                                         shape = RoundedCornerShape(4.dp)
                                     ) {
                                         Text(
                                             train.type.displayName,
-                                            color = Color(train.type.color),
+                                            color = typeColor,
                                             style = MaterialTheme.typography.labelSmall,
                                             modifier = Modifier.padding(
                                                 horizontal = 6.dp,
@@ -1791,10 +1791,10 @@ fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int, onClick: () -> Unit
     val typeColor = Color(train.type.color)
 
     Card(
-        // FIX: Made the entire card clickable
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        // FIX: Tint the entire card background to match the train type!
+        colors = CardDefaults.cardColors(containerColor = typeColor.copy(alpha = 0.08f))
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -1808,9 +1808,8 @@ fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int, onClick: () -> Unit
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(4.dp))
-                // FIX: Gorgeous 15% tinted pill background for the train type
                 Surface(
-                    color = typeColor.copy(alpha = 0.15f),
+                    color = typeColor.copy(alpha = 0.2f), // Boosted to 20%
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text(
@@ -1993,10 +1992,16 @@ fun MiniLiveBoardCard(
 
 @Composable
 fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinutes: Int, onClick: (TrainSchedule) -> Unit, modifier: Modifier = Modifier) {
+    // FIX: Dynamically tint the entire background if a train exists!
+    val bgColor = if (train != null) {
+        Color(train.type.color).copy(alpha = 0.08f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    }
+
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        color = bgColor,
         shape = RoundedCornerShape(12.dp),
-        // FIX: Make the box clickable if a train exists!
         modifier = modifier.clickable(enabled = train != null) { train?.let { onClick(it) } }
     ) {
         Column(Modifier.padding(12.dp)) {
@@ -2019,9 +2024,8 @@ fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinute
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(train.departureTimeString, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(6.dp))
-                    // FIX: Gorgeous 15% tinted pill background for the mini box too
                     Surface(
-                        color = typeColor.copy(alpha = 0.15f),
+                        color = typeColor.copy(alpha = 0.2f), // Boosted to 20% so it stands out against the 8% background
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
