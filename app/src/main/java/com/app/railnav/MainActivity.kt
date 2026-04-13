@@ -51,6 +51,10 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import java.util.Locale
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -257,6 +261,20 @@ fun PathfindingScreen(
                     .padding(end = 16.dp)
             )
 
+            // ── Mini Live Station Board (Peek State) ────────────────────────
+            AnimatedVisibility(
+                // Only show if mini board is enabled, we aren't currently navigating, and the full sheet isn't open
+                visible = uiState.showMiniLiveBoard && uiState.calculatedPath == null && !uiState.showLiveBoardSheet,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                MiniLiveBoardCard(
+                    onExpand = { mainViewModel.openLiveBoard() },
+                    onClose = { mainViewModel.closeMiniLiveBoard() }
+                )
+            }
+
             // ── Dynamic Turn-By-Turn Banner ────────────────────────────────
             AnimatedVisibility(
                 visible = uiState.calculatedPath != null,
@@ -365,20 +383,18 @@ fun PathfindingScreen(
 
             // ── Live Station Dashboard Sheet ───────────────────────────────
             if (uiState.showLiveBoardSheet) {
-                // NEW: Forces the sheet to open fully instead of pausing halfway
                 val liveBoardSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
                 ModalBottomSheet(
                     onDismissRequest = { mainViewModel.closeLiveBoard() },
                     sheetState = liveBoardSheetState,
                     containerColor = MaterialTheme.colorScheme.surface
-                    // FIX: Removed the modifier from here!
                 ) {
                     LiveTrainDashboardSheet(
                         currentDirection = uiState.liveBoardDirection,
                         onDirectionChanged = { mainViewModel.setLiveBoardDirection(it) },
                         onClose = { mainViewModel.closeLiveBoard() },
-                        // FIX: Applied the height restriction to the content instead
+                        // FIX: Back to the clean, adaptive height restriction
                         modifier = Modifier.fillMaxHeight(0.85f)
                     )
                 }
@@ -1674,31 +1690,24 @@ fun LiveTrainDashboardSheet(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Ticking clock state
-    var currentTimeFormatted by remember { mutableStateOf("") }
+    // FIX: We only track the current minutes here now.
+    // This value only changes once every 60 seconds, so the list will stay perfectly still!
     var currentMinutes by remember { mutableIntStateOf(TrainRepository.currentMinutes()) }
 
-    // Update the clock every second
     LaunchedEffect(Unit) {
         while (true) {
             val cal = Calendar.getInstance()
-            val hh = String.format(Locale.US, "%02d", cal.get(Calendar.HOUR_OF_DAY))
-            val mm = String.format(Locale.US, "%02d", cal.get(Calendar.MINUTE))
-            val ss = String.format(Locale.US, "%02d", cal.get(Calendar.SECOND))
-            currentTimeFormatted = "$hh:$mm:$ss"
             currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-            delay(1000)
+            kotlinx.coroutines.delay(15000) // Only check every 15 seconds to save resources
         }
     }
 
-    // Filter and sort trains based on the selected direction
     val activeTrains = remember(currentDirection, currentMinutes) {
         TrainRepository.schedule
             .filter { it.direction == currentDirection }
-            // Filter out trains that departed more than 15 minutes ago to keep the board clean
             .filter { train ->
                 var diff = train.departureMinutes - currentMinutes
-                if (diff < -720) diff += 1440 // Wrap around midnight
+                if (diff < -720) diff += 1440
                 diff > -15
             }
             .sortedBy { train ->
@@ -1709,44 +1718,22 @@ fun LiveTrainDashboardSheet(
     }
 
     Column(
-        modifier = modifier
-            .padding(horizontal = 16.dp)
-            .padding(horizontal = 16.dp)
+        modifier = modifier.padding(horizontal = 16.dp)
     ) {
-        // --- Header (Title & Clock) ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    "THANE DEPARTURES",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    text = "Live • $currentTimeFormatted",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, "Close Board")
-            }
-        }
+        // ==========================================
+        // 1. ISOLATED HEADER
+        // ==========================================
+        LiveClockHeader(onClose = onClose)
 
         Spacer(Modifier.height(16.dp))
 
-        // --- Direction Switcher ---
+        // ==========================================
+        // 2. DIRECTION SWITCHER
+        // ==========================================
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
             shape = RoundedCornerShape(24.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
+            modifier = Modifier.fillMaxWidth().height(48.dp)
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
                 TrainDirection.entries.forEach { dir ->
@@ -1776,15 +1763,16 @@ fun LiveTrainDashboardSheet(
 
         Spacer(Modifier.height(16.dp))
 
-        // --- Live Train List ---
+        // ==========================================
+        // 3. THE LAZY COLUMN
+        // ==========================================
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f), // <-- FIX 1: Anchors the list to prevent accidental sheet closing!
+                .weight(1f),
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // FIX 2: Added a unique 'key' so the layout doesn't bounce when the clock ticks
             items(activeTrains, key = { it.trainNumber }) { train ->
                 LiveTrainCard(train = train, currentMinutes = currentMinutes)
             }
@@ -1875,6 +1863,175 @@ fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int) {
                     fontWeight = FontWeight.Bold,
                     color = statusColor
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun LiveClockHeader(onClose: () -> Unit) {
+    var currentTimeFormatted by remember { mutableStateOf("") }
+
+    // This loop ticks every second, but NOW it ONLY recomposes this tiny header!
+    LaunchedEffect(Unit) {
+        while (true) {
+            val cal = Calendar.getInstance()
+            val hh = String.format(Locale.US, "%02d", cal.get(Calendar.HOUR_OF_DAY))
+            val mm = String.format(Locale.US, "%02d", cal.get(Calendar.MINUTE))
+            val ss = String.format(Locale.US, "%02d", cal.get(Calendar.SECOND))
+            currentTimeFormatted = "$hh:$mm:$ss"
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                "THANE DEPARTURES",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+            Text(
+                text = "Live • $currentTimeFormatted",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        IconButton(onClick = onClose) {
+            Icon(Icons.Default.Close, "Close Board")
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Mini Persistent Live Board (Peek State)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun MiniLiveBoardCard(
+    onExpand: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var currentMinutes by remember { mutableIntStateOf(TrainRepository.currentMinutes()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val cal = java.util.Calendar.getInstance()
+            currentMinutes = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+            kotlinx.coroutines.delay(15000)
+        }
+    }
+
+    // Helper to fetch the immediate next train safely
+    fun getNextTrain(dir: TrainDirection): TrainSchedule? {
+        return TrainRepository.schedule
+            .filter { it.direction == dir }
+            .map { train ->
+                var diff = train.departureMinutes - currentMinutes
+                if (diff < -720) diff += 1440 // handle midnight wrap
+                train to diff
+            }
+            .filter { it.second >= -1 } // Include trains that departed 1 min ago ("Now")
+            .minByOrNull { it.second }
+            ?.first
+    }
+
+    val upTrain = remember(currentMinutes) { getNextTrain(TrainDirection.UP) }
+    val downTrain = remember(currentMinutes) { getNextTrain(TrainDirection.DOWN) }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(16.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            // FIX: Cleaned up the pointerInput and gesture detector!
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    change.consume()
+                    if (dragAmount < -10) onExpand() // Swiped UP -> Expand
+                    else if (dragAmount > 15) onClose() // Swiped DOWN -> Hide
+                }
+            }
+            .clickable { onExpand() },
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            // Drag Handle & Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.DragHandle, contentDescription = "Pull up", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Live Next Departures", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
+                }
+                IconButton(onClick = onClose, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Hide Board")
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // The Two Direction Boxes
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MiniTrainBox(TrainDirection.UP, upTrain, currentMinutes, Modifier.weight(1f))
+                MiniTrainBox(TrainDirection.DOWN, downTrain, currentMinutes, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp)) // Padding for bottom nav bar
+        }
+    }
+}
+
+@Composable
+fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinutes: Int, modifier: Modifier = Modifier) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                text = if (direction == TrainDirection.UP) "UP (CSMT)" else "DOWN (KALYAN)",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Spacer(Modifier.height(6.dp))
+
+            if (train != null) {
+                var diff = train.departureMinutes - currentMinutes
+                if (diff < -720) diff += 1440
+
+                val statusText = if (diff <= 0) "Now" else "in $diff min"
+                val statusColor = if (diff <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+
+                Text("${train.departureTimeString} • ${train.type.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Text("PF ${train.platformAtThane}", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Text(statusText, color = statusColor, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                }
+            } else {
+                Text("No upcoming trains", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

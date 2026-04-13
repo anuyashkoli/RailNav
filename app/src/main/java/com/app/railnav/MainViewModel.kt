@@ -75,6 +75,7 @@ data class MainUiState(
     // Live Board State
     val showLiveBoardSheet: Boolean = false,
     val liveBoardDirection: TrainDirection = TrainDirection.DOWN,
+    val showMiniLiveBoard: Boolean = true
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -652,11 +653,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ======================================================================
 
     fun openLiveBoard() {
-        _uiState.value = _uiState.value.copy(showLiveBoardSheet = true)
+        _uiState.value = _uiState.value.copy(showLiveBoardSheet = true, showMiniLiveBoard = true)
     }
 
     fun closeLiveBoard() {
         _uiState.value = _uiState.value.copy(showLiveBoardSheet = false)
+    }
+
+    fun closeMiniLiveBoard() {
+        _uiState.value = _uiState.value.copy(showMiniLiveBoard = false)
     }
 
     fun setLiveBoardDirection(direction: TrainDirection) {
