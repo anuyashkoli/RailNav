@@ -3,28 +3,35 @@ package com.app.railnav.data
 import java.util.Calendar
 
 /**
- * Static dummy schedule for Thane station.
+ * Static schedule for Thane station.
  *
- * Platform mapping used here (approximate, realistic for Thane):
- *   1  → Fast UP (towards CSMT)
- *   2  → Slow UP (towards CSMT)
- *   3  → Slow DOWN (towards Kasara/Karjat) – east-face
- *   4  → Slow DOWN (towards Kasara/Karjat) – west-face
- *   5  → Fast / Semi-Fast DOWN
- *   6  → Semi-Fast / Special DOWN
+ * Correct platform mapping for Thane:
+ *   1   → Slow UP (towards CSMT) – Thane-start trains
+ *   2   → Slow / Semi-Fast DOWN (towards Kasara/Karjat)
+ *   3   → Slow DOWN (towards Kasara/Karjat) – east-face – Thane-start trains
+ *   4   → Slow / Semi-Fast UP (towards CSMT) – west-face
+ *   5   → Fast / Semi-Fast DOWN
+ *   6   → Fast / Semi-Fast UP
+ *   7   → Outstation – Fast UP (towards CSMT) – express / long-route trains
+ *   8   → Outstation (towards CSMT)
+ *   9   → Slow DOWN (towards Panvel / Vashi) – Trans Harbour Line
+ *   10  → Slow DOWN (towards Panvel / Vashi) – Trans Harbour Line
+ *   10A → Slow DOWN (towards Panvel / Vashi) – Trans Harbour Line
+ *         All Trans Harbour trains start from Thane
  *
  * Graph-node mapping – the level-0 (platform-level) stairway/escalator
  * nodes that sit mid-platform, giving the pathfinder a sensible target:
- *   Platform 1  → node 104
- *   Platform 2  → node 80
- *   Platform 3  → node 81
- *   Platform 4  → node 82
- *   Platform 5  → node 83
- *   Platform 6  → node 84
- *   Platform 7  → node 85
- *   Platform 8  → node 86
- *   Platform 9  → node 87
- *   Platform 10 → node 89
+ *   Platform 1   → node 104
+ *   Platform 2   → node 80
+ *   Platform 3   → node 81
+ *   Platform 4   → node 82
+ *   Platform 5   → node 83
+ *   Platform 6   → node 84
+ *   Platform 7   → node 85
+ *   Platform 8   → node 86
+ *   Platform 9   → node 87
+ *   Platform 10  → node 89
+ *   Platform 10A → node 89   (shares node with PF 10)
  */
 object TrainRepository {
 
@@ -76,7 +83,7 @@ object TrainRepository {
 
     // ── all known stations (for search suggestions) ─────────────────────────
     val allStations: List<String> = listOf(
-        // UP direction
+        // UP direction (Central Line towards CSMT)
         "CSMT", "Masjid", "Sandhurst Road", "Byculla", "Chinchpokli", "Currey Road",
         "Parel", "Dadar", "Matunga", "Sion", "Kurla", "Vidyavihar", "Ghatkopar",
         "Vikhroli", "Kanjurmarg", "Bhandup", "Nahur", "Mulund",
@@ -86,131 +93,265 @@ object TrainRepository {
         "Atgaon", "Khardi", "Kasara",
         // DOWN direction – Karjat branch (from Kalyan)
         "Vitthalwadi", "Ulhasnagar", "Ambernath", "Badlapur", "Vangani",
-        "Neral", "Bhivpuri Road", "Karjat"
+        "Neral", "Bhivpuri Road", "Karjat",
+        // Trans Harbour Line
+        "Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe",
+        "Sanpada", "Juinagar", "Nerul", "Seawoods-Darave", "CBD Belapur",
+        "Kharghar", "Mansarovar", "Khandeshwar", "Panvel",
+        "Vashi"
     ).sorted()
 
-    // ── dummy schedule ──────────────────────────────────────────────────────
+    // ── schedule ──────────────────────────────────────────────────────────
+
     val schedule: List<TrainSchedule> = listOf(
 
         // ═══════════════════════════════════════════════════════════════════
-        //  DOWN trains  (away from CSMT, towards Kasara / Karjat / Badlapur)
+        //  SLOW DOWN – Platform 2 (Slow / Semi-Fast DOWN)
+        //  towards Kasara / Karjat
         // ═══════════════════════════════════════════════════════════════════
 
-        TrainSchedule("98101", TrainType.SLOW,      TrainDirection.DOWN, 3, t(5,58),  "Kasara",
+        TrainSchedule("98101", TrainType.SLOW,      TrainDirection.DOWN, 2, t(5,58),  "Kasara",
             listOf("Dombivli", "Kalyan", "Titwala", "Vasind", "Asangaon")),
+        TrainSchedule("98107", TrainType.SLOW,      TrainDirection.DOWN, 2, t(6,25),  "Badlapur",
+            listOf("Dombivli", "Kalyan", "Ulhasnagar", "Ambernath")),
+        TrainSchedule("98111", TrainType.SLOW,      TrainDirection.DOWN, 2, t(6,52),  "Titwala",
+            listOf("Dombivli", "Kalyan", "Shahad", "Ambivli")),
+        TrainSchedule("98117", TrainType.SLOW,      TrainDirection.DOWN, 2, t(7,28),  "Kasara",
+            listOf("Dombivli", "Kalyan", "Titwala", "Khadavali", "Vasind")),
+        TrainSchedule("98123", TrainType.SLOW,      TrainDirection.DOWN, 2, t(8,8),   "Karjat",
+            listOf("Dombivli", "Kalyan", "Ulhasnagar", "Ambernath", "Badlapur", "Vangani", "Neral")),
+        TrainSchedule("98129", TrainType.SLOW,      TrainDirection.DOWN, 2, t(8,50),  "Badlapur",
+            listOf("Dombivli", "Kalyan", "Ambernath")),
+        TrainSchedule("98135", TrainType.SLOW,      TrainDirection.DOWN, 2, t(9,35),  "Titwala",
+            listOf("Dombivli", "Kalyan", "Shahad", "Ambivli")),
+        TrainSchedule("98141", TrainType.SLOW,      TrainDirection.DOWN, 2, t(11,10), "Badlapur",
+            listOf("Dombivli", "Kalyan", "Ambernath")),
+        TrainSchedule("98147", TrainType.SLOW,      TrainDirection.DOWN, 2, t(14,45), "Karjat",
+            listOf("Dombivli", "Kalyan", "Ambernath", "Badlapur")),
+        TrainSchedule("98155", TrainType.SLOW,      TrainDirection.DOWN, 2, t(18,15), "Kasara",
+            listOf("Dombivli", "Kalyan", "Titwala")),
+        TrainSchedule("98161", TrainType.SLOW,      TrainDirection.DOWN, 2, t(20,30), "Badlapur",
+            listOf("Dombivli", "Kalyan", "Ambernath")),
+        TrainSchedule("98165", TrainType.SLOW,      TrainDirection.DOWN, 2, t(22,0),  "Kasara",
+            listOf("Dombivli", "Kalyan", "Titwala")),
+        // Semi-Fast on PF 2
+        TrainSchedule("98121", TrainType.SEMI_FAST, TrainDirection.DOWN, 2, t(7,55),  "Kasara",
+            listOf("Kalyan", "Titwala", "Vasind")),
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SLOW DOWN – Platform 3 (Thane-start trains)
+        //  towards Kasara / Karjat
+        // ═══════════════════════════════════════════════════════════════════
+
+        TrainSchedule("98201", TrainType.SLOW,      TrainDirection.DOWN, 3, t(6,18),  "Karjat",
+            listOf("Dombivli", "Kalyan", "Ulhasnagar", "Ambernath", "Badlapur", "Vangani", "Neral")),
+        TrainSchedule("98203", TrainType.SLOW,      TrainDirection.DOWN, 3, t(7,5),   "Karjat",
+            listOf("Dombivli", "Kalyan", "Ambernath", "Badlapur", "Vangani", "Neral")),
+        TrainSchedule("98205", TrainType.SLOW,      TrainDirection.DOWN, 3, t(7,42),  "Badlapur",
+            listOf("Dombivli", "Kalyan", "Ulhasnagar", "Ambernath")),
+        TrainSchedule("98207", TrainType.SLOW,      TrainDirection.DOWN, 3, t(8,35),  "Kasara",
+            listOf("Dombivli", "Kalyan", "Titwala", "Vasind", "Asangaon")),
+        TrainSchedule("98209", TrainType.SLOW,      TrainDirection.DOWN, 3, t(9,20),  "Karjat",
+            listOf("Dombivli", "Kalyan", "Ambernath", "Badlapur", "Vangani", "Neral")),
+        TrainSchedule("98211", TrainType.SLOW,      TrainDirection.DOWN, 3, t(10,25), "Kasara",
+            listOf("Dombivli", "Kalyan", "Titwala", "Vasind")),
+        TrainSchedule("98213", TrainType.SLOW,      TrainDirection.DOWN, 3, t(13,20), "Kasara",
+            listOf("Dombivli", "Kalyan", "Titwala")),
+        TrainSchedule("98215", TrainType.SLOW,      TrainDirection.DOWN, 3, t(17,5),  "Badlapur",
+            listOf("Dombivli", "Kalyan", "Ambernath")),
+        TrainSchedule("98217", TrainType.SLOW,      TrainDirection.DOWN, 3, t(19,0),  "Karjat",
+            listOf("Dombivli", "Kalyan", "Ambernath", "Badlapur", "Vangani", "Neral")),
+        TrainSchedule("98219", TrainType.SLOW,      TrainDirection.DOWN, 3, t(21,15), "Kalyan",
+            listOf("Dombivli")),
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  FAST / SEMI-FAST DOWN – Platform 5
+        //  towards Kalyan / Kasara / Karjat
+        // ═══════════════════════════════════════════════════════════════════
+
         TrainSchedule("98103", TrainType.FAST,      TrainDirection.DOWN, 5, t(6,10),  "Kalyan",
             listOf("Dombivli")),
-        TrainSchedule("98105", TrainType.SLOW,      TrainDirection.DOWN, 4, t(6,18),  "Karjat",
-            listOf("Dombivli", "Kalyan", "Ulhasnagar", "Ambernath", "Badlapur", "Vangani", "Neral")),
-        TrainSchedule("98107", TrainType.SLOW,      TrainDirection.DOWN, 3, t(6,25),  "Badlapur",
-            listOf("Dombivli", "Kalyan", "Ulhasnagar", "Ambernath")),
-        TrainSchedule("98109", TrainType.FAST,      TrainDirection.DOWN, 6, t(6,40),  "Kasara",
+        TrainSchedule("98109", TrainType.FAST,      TrainDirection.DOWN, 5, t(6,40),  "Kasara",
             listOf("Kalyan", "Titwala", "Vasind")),
-        TrainSchedule("98111", TrainType.SLOW,      TrainDirection.DOWN, 4, t(6,52),  "Titwala",
-            listOf("Dombivli", "Kalyan", "Shahad", "Ambivli")),
-        TrainSchedule("98113", TrainType.SLOW,      TrainDirection.DOWN, 3, t(7,5),   "Karjat",
-            listOf("Dombivli", "Kalyan", "Ambernath", "Badlapur", "Vangani", "Neral")),
         TrainSchedule("98115", TrainType.FAST,      TrainDirection.DOWN, 5, t(7,15),  "Kalyan",
             listOf("Dombivli")),
-        TrainSchedule("98117", TrainType.SLOW,      TrainDirection.DOWN, 4, t(7,28),  "Kasara",
-            listOf("Dombivli", "Kalyan", "Titwala", "Khadavali", "Vasind")),
-        TrainSchedule("98119", TrainType.SLOW,      TrainDirection.DOWN, 3, t(7,42),  "Badlapur",
-            listOf("Dombivli", "Kalyan", "Ulhasnagar", "Ambernath")),
-        TrainSchedule("98121", TrainType.SEMI_FAST, TrainDirection.DOWN, 6, t(7,55),  "Kasara",
-            listOf("Kalyan", "Titwala", "Vasind")),
-        TrainSchedule("98123", TrainType.SLOW,      TrainDirection.DOWN, 4, t(8,8),   "Karjat",
-            listOf("Dombivli", "Kalyan", "Ulhasnagar", "Ambernath", "Badlapur", "Vangani", "Neral")),
         TrainSchedule("98125", TrainType.FAST,      TrainDirection.DOWN, 5, t(8,22),  "Kalyan",
             listOf("Dombivli")),
-        TrainSchedule("98127", TrainType.SLOW,      TrainDirection.DOWN, 3, t(8,35),  "Kasara",
-            listOf("Dombivli", "Kalyan", "Titwala", "Vasind", "Asangaon")),
-        TrainSchedule("98129", TrainType.SLOW,      TrainDirection.DOWN, 4, t(8,50),  "Badlapur",
-            listOf("Dombivli", "Kalyan", "Ambernath")),
-        TrainSchedule("98131", TrainType.FAST,      TrainDirection.DOWN, 6, t(9,5),   "Kasara",
+        TrainSchedule("98131", TrainType.SEMI_FAST, TrainDirection.DOWN, 5, t(9,5),   "Kasara",
             listOf("Kalyan", "Titwala")),
-        TrainSchedule("98133", TrainType.SLOW,      TrainDirection.DOWN, 3, t(9,20),  "Karjat",
-            listOf("Dombivli", "Kalyan", "Ambernath", "Badlapur", "Vangani", "Neral")),
-        TrainSchedule("98135", TrainType.SLOW,      TrainDirection.DOWN, 4, t(9,35),  "Titwala",
-            listOf("Dombivli", "Kalyan", "Shahad", "Ambivli")),
         TrainSchedule("98137", TrainType.FAST,      TrainDirection.DOWN, 5, t(10,0),  "Kalyan",
             listOf("Dombivli")),
-        TrainSchedule("98139", TrainType.SLOW,      TrainDirection.DOWN, 3, t(10,25), "Kasara",
-            listOf("Dombivli", "Kalyan", "Titwala", "Vasind")),
-        TrainSchedule("98141", TrainType.SLOW,      TrainDirection.DOWN, 4, t(11,10), "Badlapur",
-            listOf("Dombivli", "Kalyan", "Ambernath")),
         TrainSchedule("98143", TrainType.FAST,      TrainDirection.DOWN, 5, t(12,15), "Kalyan",
             listOf("Dombivli")),
-        TrainSchedule("98145", TrainType.SLOW,      TrainDirection.DOWN, 3, t(13,20), "Kasara",
-            listOf("Dombivli", "Kalyan", "Titwala")),
-        TrainSchedule("98147", TrainType.SLOW,      TrainDirection.DOWN, 4, t(14,45), "Karjat",
-            listOf("Dombivli", "Kalyan", "Ambernath", "Badlapur")),
-        TrainSchedule("98149", TrainType.FAST,      TrainDirection.DOWN, 6, t(16,10), "Kasara",
+        TrainSchedule("98149", TrainType.FAST,      TrainDirection.DOWN, 5, t(16,10), "Kasara",
             listOf("Kalyan", "Titwala")),
-        TrainSchedule("98151", TrainType.SLOW,      TrainDirection.DOWN, 3, t(17,5),  "Badlapur",
-            listOf("Dombivli", "Kalyan", "Ambernath")),
         TrainSchedule("98153", TrainType.FAST,      TrainDirection.DOWN, 5, t(17,30), "Kalyan",
             listOf("Dombivli")),
-        TrainSchedule("98155", TrainType.SLOW,      TrainDirection.DOWN, 4, t(18,15), "Kasara",
-            listOf("Dombivli", "Kalyan", "Titwala")),
-        TrainSchedule("98157", TrainType.SLOW,      TrainDirection.DOWN, 3, t(19,0),  "Karjat",
-            listOf("Dombivli", "Kalyan", "Ambernath", "Badlapur", "Vangani", "Neral")),
-        TrainSchedule("98159", TrainType.FAST,      TrainDirection.DOWN, 6, t(19,45), "Kasara",
+        TrainSchedule("98159", TrainType.FAST,      TrainDirection.DOWN, 5, t(19,45), "Kasara",
             listOf("Kalyan")),
-        TrainSchedule("98161", TrainType.SLOW,      TrainDirection.DOWN, 4, t(20,30), "Badlapur",
-            listOf("Dombivli", "Kalyan", "Ambernath")),
-        TrainSchedule("98163", TrainType.SLOW,      TrainDirection.DOWN, 3, t(21,15), "Kalyan",
-            listOf("Dombivli")),
-        TrainSchedule("98165", TrainType.SLOW,      TrainDirection.DOWN, 4, t(22,0),  "Kasara",
-            listOf("Dombivli", "Kalyan", "Titwala")),
 
         // ═══════════════════════════════════════════════════════════════════
-        //  UP trains  (towards CSMT / Mumbai)
+        //  SLOW UP – Platform 1 (Thane-start trains)
+        //  towards CSMT
         // ═══════════════════════════════════════════════════════════════════
 
-        TrainSchedule("97102", TrainType.SLOW,      TrainDirection.UP, 2, t(6,5),   "CSMT",
+        TrainSchedule("97201", TrainType.SLOW,      TrainDirection.UP, 1, t(5,45),  "CSMT",
+            listOf("Mulund", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
+        TrainSchedule("97203", TrainType.SLOW,      TrainDirection.UP, 1, t(6,30),  "CSMT",
             listOf("Mulund", "Nahur", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
-        TrainSchedule("97104", TrainType.FAST,      TrainDirection.UP, 1, t(6,20),  "CSMT",
-            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97106", TrainType.SLOW,      TrainDirection.UP, 2, t(6,45),  "CSMT",
+        TrainSchedule("97205", TrainType.SLOW,      TrainDirection.UP, 1, t(7,15),  "CSMT",
+            listOf("Mulund", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
+        TrainSchedule("97207", TrainType.SLOW,      TrainDirection.UP, 1, t(8,0),   "CSMT",
+            listOf("Mulund", "Nahur", "Bhandup", "Ghatkopar", "Kurla", "Sion", "Dadar")),
+        TrainSchedule("97209", TrainType.SLOW,      TrainDirection.UP, 1, t(8,45),  "Dadar",
+            listOf("Mulund", "Ghatkopar", "Kurla", "Sion")),
+        TrainSchedule("97211", TrainType.SLOW,      TrainDirection.UP, 1, t(9,30),  "CSMT",
+            listOf("Mulund", "Bhandup", "Ghatkopar", "Kurla", "Sion", "Dadar")),
+        TrainSchedule("97213", TrainType.SLOW,      TrainDirection.UP, 1, t(11,0),  "CSMT",
+            listOf("Mulund", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
+        TrainSchedule("97215", TrainType.SLOW,      TrainDirection.UP, 1, t(14,0),  "CSMT",
+            listOf("Mulund", "Bhandup", "Ghatkopar", "Kurla", "Sion", "Dadar")),
+        TrainSchedule("97217", TrainType.SLOW,      TrainDirection.UP, 1, t(17,0),  "CSMT",
+            listOf("Mulund", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
+        TrainSchedule("97219", TrainType.SLOW,      TrainDirection.UP, 1, t(20,0),  "CSMT",
+            listOf("Mulund", "Bhandup", "Ghatkopar", "Kurla", "Dadar")),
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SLOW / SEMI-FAST UP – Platform 4
+        //  towards CSMT (through trains from Kalyan/Kasara/Karjat)
+        // ═══════════════════════════════════════════════════════════════════
+
+        TrainSchedule("97102", TrainType.SLOW,      TrainDirection.UP, 4, t(6,5),   "CSMT",
             listOf("Mulund", "Nahur", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
-        TrainSchedule("97108", TrainType.FAST,      TrainDirection.UP, 1, t(7,10),  "CSMT",
-            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97110", TrainType.SLOW,      TrainDirection.UP, 2, t(7,30),  "Dadar",
+        TrainSchedule("97106", TrainType.SLOW,      TrainDirection.UP, 4, t(6,45),  "CSMT",
+            listOf("Mulund", "Nahur", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
+        TrainSchedule("97110", TrainType.SLOW,      TrainDirection.UP, 4, t(7,30),  "Dadar",
             listOf("Mulund", "Nahur", "Ghatkopar", "Kurla", "Sion")),
-        TrainSchedule("97112", TrainType.FAST,      TrainDirection.UP, 1, t(7,55),  "CSMT",
-            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97114", TrainType.SLOW,      TrainDirection.UP, 2, t(8,15),  "CSMT",
+        TrainSchedule("97114", TrainType.SLOW,      TrainDirection.UP, 4, t(8,15),  "CSMT",
             listOf("Mulund", "Nahur", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
-        TrainSchedule("97116", TrainType.SEMI_FAST, TrainDirection.UP, 1, t(8,40),  "CSMT",
-            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97118", TrainType.SLOW,      TrainDirection.UP, 2, t(9,10),  "CSMT",
+        TrainSchedule("97118", TrainType.SLOW,      TrainDirection.UP, 4, t(9,10),  "CSMT",
             listOf("Mulund", "Bhandup", "Ghatkopar", "Kurla", "Sion", "Dadar")),
-        TrainSchedule("97120", TrainType.FAST,      TrainDirection.UP, 1, t(9,45),  "CSMT",
-            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97122", TrainType.SLOW,      TrainDirection.UP, 2, t(10,20), "Dadar",
+        TrainSchedule("97122", TrainType.SLOW,      TrainDirection.UP, 4, t(10,20), "Dadar",
             listOf("Mulund", "Ghatkopar", "Kurla")),
-        TrainSchedule("97124", TrainType.FAST,      TrainDirection.UP, 1, t(11,0),  "CSMT",
-            listOf("Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97126", TrainType.SLOW,      TrainDirection.UP, 2, t(12,10), "CSMT",
+        TrainSchedule("97126", TrainType.SLOW,      TrainDirection.UP, 4, t(12,10), "CSMT",
             listOf("Mulund", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
-        TrainSchedule("97128", TrainType.FAST,      TrainDirection.UP, 1, t(13,30), "CSMT",
-            listOf("Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97130", TrainType.SLOW,      TrainDirection.UP, 2, t(14,50), "CSMT",
+        TrainSchedule("97130", TrainType.SLOW,      TrainDirection.UP, 4, t(14,50), "CSMT",
             listOf("Mulund", "Bhandup", "Ghatkopar", "Kurla", "Sion", "Dadar")),
-        TrainSchedule("97132", TrainType.FAST,      TrainDirection.UP, 1, t(16,20), "CSMT",
-            listOf("Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97134", TrainType.SLOW,      TrainDirection.UP, 2, t(17,40), "CSMT",
+        TrainSchedule("97134", TrainType.SLOW,      TrainDirection.UP, 4, t(17,40), "CSMT",
             listOf("Mulund", "Bhandup", "Ghatkopar", "Kurla", "Sion", "Dadar")),
-        TrainSchedule("97136", TrainType.FAST,      TrainDirection.UP, 1, t(18,50), "CSMT",
-            listOf("Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97138", TrainType.SLOW,      TrainDirection.UP, 2, t(19,30), "CSMT",
+        TrainSchedule("97138", TrainType.SLOW,      TrainDirection.UP, 4, t(19,30), "CSMT",
             listOf("Mulund", "Bhandup", "Vikhroli", "Ghatkopar", "Kurla", "Sion", "Dadar")),
-        TrainSchedule("97140", TrainType.FAST,      TrainDirection.UP, 1, t(20,15), "CSMT",
-            listOf("Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97142", TrainType.SLOW,      TrainDirection.UP, 2, t(21,0),  "CSMT",
+        TrainSchedule("97142", TrainType.SLOW,      TrainDirection.UP, 4, t(21,0),  "CSMT",
             listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
-        TrainSchedule("97144", TrainType.SLOW,      TrainDirection.UP, 2, t(22,10), "Dadar",
-            listOf("Mulund", "Ghatkopar", "Kurla"))
+        TrainSchedule("97144", TrainType.SLOW,      TrainDirection.UP, 4, t(22,10), "Dadar",
+            listOf("Mulund", "Ghatkopar", "Kurla")),
+        // Semi-Fast on PF 4
+        TrainSchedule("97116", TrainType.SEMI_FAST, TrainDirection.UP, 4, t(8,40),  "CSMT",
+            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  FAST / SEMI-FAST UP – Platform 6
+        //  towards CSMT (through fast trains from Kalyan/Kasara)
+        // ═══════════════════════════════════════════════════════════════════
+
+        TrainSchedule("97104", TrainType.FAST,      TrainDirection.UP, 6, t(6,20),  "CSMT",
+            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
+        TrainSchedule("97108", TrainType.FAST,      TrainDirection.UP, 6, t(7,10),  "CSMT",
+            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
+        TrainSchedule("97112", TrainType.FAST,      TrainDirection.UP, 6, t(7,55),  "CSMT",
+            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
+        TrainSchedule("97120", TrainType.FAST,      TrainDirection.UP, 6, t(9,45),  "CSMT",
+            listOf("Mulund", "Ghatkopar", "Kurla", "Dadar")),
+        TrainSchedule("97124", TrainType.FAST,      TrainDirection.UP, 6, t(11,0),  "CSMT",
+            listOf("Ghatkopar", "Kurla", "Dadar")),
+        TrainSchedule("97128", TrainType.FAST,      TrainDirection.UP, 6, t(13,30), "CSMT",
+            listOf("Ghatkopar", "Kurla", "Dadar")),
+        TrainSchedule("97132", TrainType.FAST,      TrainDirection.UP, 6, t(16,20), "CSMT",
+            listOf("Ghatkopar", "Kurla", "Dadar")),
+        TrainSchedule("97136", TrainType.FAST,      TrainDirection.UP, 6, t(18,50), "CSMT",
+            listOf("Ghatkopar", "Kurla", "Dadar")),
+        TrainSchedule("97140", TrainType.FAST,      TrainDirection.UP, 6, t(20,15), "CSMT",
+            listOf("Ghatkopar", "Kurla", "Dadar")),
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  OUTSTATION – Platform 7 (Fast UP, express/long-route trains)
+        //  towards CSMT
+        // ═══════════════════════════════════════════════════════════════════
+
+        TrainSchedule("12124", TrainType.OUTSTATION, TrainDirection.UP, 7, t(6,45),  "CSMT",
+            listOf("Dadar")),
+        TrainSchedule("12126", TrainType.OUTSTATION, TrainDirection.UP, 7, t(8,30),  "CSMT",
+            listOf("Dadar")),
+        TrainSchedule("12128", TrainType.OUTSTATION, TrainDirection.UP, 7, t(10,15), "CSMT",
+            listOf("Dadar")),
+        TrainSchedule("12130", TrainType.OUTSTATION, TrainDirection.UP, 7, t(14,0),  "CSMT",
+            listOf("Dadar")),
+        TrainSchedule("12132", TrainType.OUTSTATION, TrainDirection.UP, 7, t(17,30), "CSMT",
+            listOf("Dadar")),
+        TrainSchedule("12134", TrainType.OUTSTATION, TrainDirection.UP, 7, t(20,0),  "CSMT",
+            listOf("Dadar")),
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  OUTSTATION – Platform 8 (towards CSMT)
+        // ═══════════════════════════════════════════════════════════════════
+
+        TrainSchedule("11024", TrainType.OUTSTATION, TrainDirection.UP, 8, t(7,15),  "CSMT",
+            listOf("Dadar")),
+        TrainSchedule("11026", TrainType.OUTSTATION, TrainDirection.UP, 8, t(11,30), "CSMT",
+            listOf("Dadar")),
+        TrainSchedule("11028", TrainType.OUTSTATION, TrainDirection.UP, 8, t(16,0),  "CSMT",
+            listOf("Dadar")),
+        TrainSchedule("11030", TrainType.OUTSTATION, TrainDirection.UP, 8, t(19,45), "CSMT",
+            listOf("Dadar")),
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  TRANS HARBOUR LINE – Platforms 9, 10 (Thane-start, towards Panvel/Vashi)
+        // ═══════════════════════════════════════════════════════════════════
+
+        TrainSchedule("99301", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(5,30),  "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Juinagar", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99303", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(6,0),   "Vashi",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada")),
+        TrainSchedule("99305", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(6,25),  "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Juinagar", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99307", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(6,50),  "Vashi",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada")),
+        TrainSchedule("99309", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(7,10),  "Panvel",
+            listOf("Airoli", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Juinagar", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99311", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(7,35),  "Vashi",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada")),
+        TrainSchedule("99313", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(7,55),  "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99315", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(8,20),  "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Juinagar", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99317", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(8,45),  "Vashi",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada")),
+        TrainSchedule("99319", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(9,15),  "Panvel",
+            listOf("Airoli", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Juinagar", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99321", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(10,0),  "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Sanpada", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99323", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(11,30), "Vashi",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada")),
+        TrainSchedule("99325", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(13,0),  "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99327", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(15,0),  "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Juinagar", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99329", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(16,30), "Vashi",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada")),
+        TrainSchedule("99331", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(17,15), "Panvel",
+            listOf("Airoli", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99333", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(18,0),  "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Juinagar", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99335", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(18,45), "Vashi",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada")),
+        TrainSchedule("99337", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(19,30), "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Sanpada", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99339", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(20,30), "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Juinagar", "Nerul", "CBD Belapur", "Kharghar")),
+        TrainSchedule("99341", TrainType.SLOW,      TrainDirection.HARBOUR,  9, t(21,30), "Vashi",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada")),
+        TrainSchedule("99343", TrainType.SLOW,      TrainDirection.HARBOUR, 10, t(22,30), "Panvel",
+            listOf("Airoli", "Rabale", "Ghansoli", "Kopar Khairane", "Turbhe", "Sanpada", "Nerul", "CBD Belapur", "Kharghar"))
     )
 
     // ── public API ──────────────────────────────────────────────────────────

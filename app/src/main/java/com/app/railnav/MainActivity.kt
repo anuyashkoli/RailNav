@@ -1885,10 +1885,14 @@ fun LiveTrainDashboardSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (dir == TrainDirection.UP) "UP (CSMT)" else "DOWN (Kalyan)",
+                            text = when (dir) {
+                                TrainDirection.UP -> "UP (CSMT)"
+                                TrainDirection.DOWN -> "DOWN"
+                                TrainDirection.HARBOUR -> "HARBOUR"
+                            },
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelLarge
+                            style = MaterialTheme.typography.labelMedium
                         )
                     }
                 }
@@ -2077,6 +2081,7 @@ fun MiniLiveBoardCard(
 
     val upTrain = remember(currentMinutes) { getNextTrain(TrainDirection.UP) }
     val downTrain = remember(currentMinutes) { getNextTrain(TrainDirection.DOWN) }
+    val harbourTrain = remember(currentMinutes) { getNextTrain(TrainDirection.HARBOUR) }
 
     Card(
         modifier = modifier
@@ -2114,10 +2119,10 @@ fun MiniLiveBoardCard(
 
             Spacer(Modifier.height(12.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // FIX: Passed selection callback down
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 MiniTrainBox(TrainDirection.UP, upTrain, currentMinutes, onTrainSelected, Modifier.weight(1f))
                 MiniTrainBox(TrainDirection.DOWN, downTrain, currentMinutes, onTrainSelected, Modifier.weight(1f))
+                MiniTrainBox(TrainDirection.HARBOUR, harbourTrain, currentMinutes, onTrainSelected, Modifier.weight(1f))
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -2140,7 +2145,11 @@ fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinute
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(
-                text = if (direction == TrainDirection.UP) "UP (CSMT)" else "DOWN (KALYAN)",
+                text = when (direction) {
+                    TrainDirection.UP -> "UP (CSMT)"
+                    TrainDirection.DOWN -> "DOWN"
+                    TrainDirection.HARBOUR -> "HARBOUR"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.ExtraBold

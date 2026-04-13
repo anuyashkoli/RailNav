@@ -4,12 +4,14 @@ enum class TrainType(val displayName: String, val color: Long) {
     SLOW("Slow", 0xFF43A047),
     SEMI_FAST("Semi-Fast", 0xFFFB8C00),
     FAST("Fast", 0xFFE53935),
-    AC_SPECIAL("AC Special", 0xFF1E88E5)
+    AC_SPECIAL("AC Special", 0xFF1E88E5),
+    OUTSTATION("Outstation", 0xFF6D4C41)
 }
 
 enum class TrainDirection(val displayName: String) {
     UP("↑ Towards Mumbai CSMT"),
-    DOWN("↓ Towards Kasara / Karjat")
+    DOWN("↓ Towards Kasara / Karjat"),
+    HARBOUR("↓ Towards Panvel / Vashi")
 }
 
 data class TrainSchedule(
