@@ -27,7 +27,7 @@ abstract class RailNavDatabase : RoomDatabase() {
                     RailNavDatabase::class.java,
                     "railnav_database"
                 )
-                    .fallbackToDestructiveMigration() // 2. ADD THIS CRITICAL LINE!
+                    .fallbackToDestructiveMigration(true)
                     .build()
                 INSTANCE = instance
                 instance
