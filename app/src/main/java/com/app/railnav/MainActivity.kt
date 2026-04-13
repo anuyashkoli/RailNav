@@ -271,7 +271,11 @@ fun PathfindingScreen(
             ) {
                 MiniLiveBoardCard(
                     onExpand = { mainViewModel.openLiveBoard() },
-                    onClose = { mainViewModel.closeMiniLiveBoard() }
+                    onClose = { mainViewModel.closeMiniLiveBoard() },
+                    onTrainSelected = { train ->
+                        mainViewModel.onTrainSelected(train)
+                        mainViewModel.closeMiniLiveBoard()
+                    }
                 )
             }
 
@@ -394,6 +398,11 @@ fun PathfindingScreen(
                         currentDirection = uiState.liveBoardDirection,
                         onDirectionChanged = { mainViewModel.setLiveBoardDirection(it) },
                         onClose = { mainViewModel.closeLiveBoard() },
+                        onTrainSelected = { train ->
+                            mainViewModel.onTrainSelected(train)
+                            mainViewModel.closeLiveBoard()
+                            mainViewModel.closeMiniLiveBoard()
+                        },
                         // FIX: Back to the clean, adaptive height restriction
                         modifier = Modifier.fillMaxHeight(0.85f)
                     )
@@ -1688,17 +1697,16 @@ fun LiveTrainDashboardSheet(
     currentDirection: TrainDirection,
     onDirectionChanged: (TrainDirection) -> Unit,
     onClose: () -> Unit,
+    onTrainSelected: (TrainSchedule) -> Unit, // <-- NEW PARAMETER
     modifier: Modifier = Modifier
 ) {
-    // FIX: We only track the current minutes here now.
-    // This value only changes once every 60 seconds, so the list will stay perfectly still!
     var currentMinutes by remember { mutableIntStateOf(TrainRepository.currentMinutes()) }
 
     LaunchedEffect(Unit) {
         while (true) {
-            val cal = Calendar.getInstance()
-            currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-            kotlinx.coroutines.delay(15000) // Only check every 15 seconds to save resources
+            val cal = java.util.Calendar.getInstance()
+            currentMinutes = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+            kotlinx.coroutines.delay(15000)
         }
     }
 
@@ -1717,19 +1725,11 @@ fun LiveTrainDashboardSheet(
             }
     }
 
-    Column(
-        modifier = modifier.padding(horizontal = 16.dp)
-    ) {
-        // ==========================================
-        // 1. ISOLATED HEADER
-        // ==========================================
+    Column(modifier = modifier.padding(horizontal = 16.dp)) {
         LiveClockHeader(onClose = onClose)
-
         Spacer(Modifier.height(16.dp))
 
-        // ==========================================
-        // 2. DIRECTION SWITCHER
-        // ==========================================
+        // Direction Switcher
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
             shape = RoundedCornerShape(24.dp),
@@ -1763,28 +1763,23 @@ fun LiveTrainDashboardSheet(
 
         Spacer(Modifier.height(16.dp))
 
-        // ==========================================
-        // 3. THE LAZY COLUMN
-        // ==========================================
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+            modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(activeTrains, key = { it.trainNumber }) { train ->
-                LiveTrainCard(train = train, currentMinutes = currentMinutes)
+                // FIX: Passed the selection callback down
+                LiveTrainCard(train = train, currentMinutes = currentMinutes, onClick = { onTrainSelected(train) })
             }
         }
     }
 }
 
 @Composable
-fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int) {
-    // Calculate live countdown
+fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int, onClick: () -> Unit) {
     var diff = train.departureMinutes - currentMinutes
-    if (diff < -720) diff += 1440 // Midnight wrap-around
+    if (diff < -720) diff += 1440
 
     val (statusText, statusColor) = when {
         diff < 0 -> Pair("Departed", MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
@@ -1796,35 +1791,40 @@ fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int) {
     val typeColor = Color(train.type.color)
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        // FIX: Made the entire card clickable
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Time & Type
-            Column(modifier = Modifier.width(60.dp)) {
+            Column(modifier = Modifier.width(68.dp)) {
                 Text(
                     text = train.departureTimeString,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = train.type.name, // "FAST", "SLOW"
-                    style = MaterialTheme.typography.labelSmall,
-                    color = typeColor,
-                    fontWeight = FontWeight.Bold
-                )
+                Spacer(Modifier.height(4.dp))
+                // FIX: Gorgeous 15% tinted pill background for the train type
+                Surface(
+                    color = typeColor.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = train.type.displayName,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = typeColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             Spacer(Modifier.width(12.dp))
 
-            // Destination
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = train.destination.uppercase(),
@@ -1841,7 +1841,6 @@ fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int) {
                 }
             }
 
-            // Platform & Countdown Badge
             Column(horizontalAlignment = Alignment.End) {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
@@ -1917,6 +1916,7 @@ fun LiveClockHeader(onClose: () -> Unit) {
 fun MiniLiveBoardCard(
     onExpand: () -> Unit,
     onClose: () -> Unit,
+    onTrainSelected: (TrainSchedule) -> Unit, // <-- NEW PARAMETER
     modifier: Modifier = Modifier
 ) {
     var currentMinutes by remember { mutableIntStateOf(TrainRepository.currentMinutes()) }
@@ -1929,16 +1929,15 @@ fun MiniLiveBoardCard(
         }
     }
 
-    // Helper to fetch the immediate next train safely
     fun getNextTrain(dir: TrainDirection): TrainSchedule? {
         return TrainRepository.schedule
             .filter { it.direction == dir }
             .map { train ->
                 var diff = train.departureMinutes - currentMinutes
-                if (diff < -720) diff += 1440 // handle midnight wrap
+                if (diff < -720) diff += 1440
                 train to diff
             }
-            .filter { it.second >= -1 } // Include trains that departed 1 min ago ("Now")
+            .filter { it.second >= -1 }
             .minByOrNull { it.second }
             ?.first
     }
@@ -1950,15 +1949,14 @@ fun MiniLiveBoardCard(
         modifier = modifier
             .fillMaxWidth()
             .shadow(16.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            // FIX: Cleaned up the pointerInput and gesture detector!
+            // FIX: Removed the ugly 'androidx...' prefixes since we imported them properly!
             .pointerInput(Unit) {
                 detectVerticalDragGestures { change, dragAmount ->
                     change.consume()
-                    if (dragAmount < -10) onExpand() // Swiped UP -> Expand
-                    else if (dragAmount > 15) onClose() // Swiped DOWN -> Hide
+                    if (dragAmount < -10) onExpand()
+                    else if (dragAmount > 15) onClose()
                 }
-            }
-            .clickable { onExpand() },
+            },
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
@@ -1966,9 +1964,8 @@ fun MiniLiveBoardCard(
         )
     ) {
         Column(Modifier.padding(16.dp)) {
-            // Drag Handle & Header
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clickable { onExpand() }, // Expand when tapping the header
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1984,22 +1981,23 @@ fun MiniLiveBoardCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // The Two Direction Boxes
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MiniTrainBox(TrainDirection.UP, upTrain, currentMinutes, Modifier.weight(1f))
-                MiniTrainBox(TrainDirection.DOWN, downTrain, currentMinutes, Modifier.weight(1f))
+                // FIX: Passed selection callback down
+                MiniTrainBox(TrainDirection.UP, upTrain, currentMinutes, onTrainSelected, Modifier.weight(1f))
+                MiniTrainBox(TrainDirection.DOWN, downTrain, currentMinutes, onTrainSelected, Modifier.weight(1f))
             }
-            Spacer(Modifier.height(8.dp)) // Padding for bottom nav bar
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinutes: Int, modifier: Modifier = Modifier) {
+fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinutes: Int, onClick: (TrainSchedule) -> Unit, modifier: Modifier = Modifier) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
         shape = RoundedCornerShape(12.dp),
-        modifier = modifier
+        // FIX: Make the box clickable if a train exists!
+        modifier = modifier.clickable(enabled = train != null) { train?.let { onClick(it) } }
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -2016,8 +2014,26 @@ fun MiniTrainBox(direction: TrainDirection, train: TrainSchedule?, currentMinute
 
                 val statusText = if (diff <= 0) "Now" else "in $diff min"
                 val statusColor = if (diff <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                val typeColor = Color(train.type.color)
 
-                Text("${train.departureTimeString} • ${train.type.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(train.departureTimeString, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(6.dp))
+                    // FIX: Gorgeous 15% tinted pill background for the mini box too
+                    Surface(
+                        color = typeColor.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = train.type.displayName,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = typeColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(8.dp))
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
