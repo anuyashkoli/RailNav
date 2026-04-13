@@ -429,7 +429,7 @@ fun FacilityQuickChips(onChipSelected: (String) -> Unit) {
 
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 8.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 72.dp, top = 0.dp, bottom = 8.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         items(facilities) { (name, icon) ->
@@ -479,8 +479,8 @@ fun TrainDestinationCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -503,19 +503,20 @@ fun TrainDestinationCard(
             OutlinedTextField(
                 value = uiState.trainDestinationQuery,
                 onValueChange = onQueryChange,
-                label = { Text("Station  (e.g. Kalyan, Kurla, CSMT…)") },
-                leadingIcon = { Icon(Icons.Default.Train, null) },
+                placeholder = { Text("Station  (e.g. Kalyan, Kurla, CSMT…)", style = MaterialTheme.typography.bodySmall) },
+                leadingIcon = { Icon(Icons.Default.Train, null, modifier = Modifier.size(20.dp)) },
                 trailingIcon = {
                     if (uiState.trainDestinationQuery.isNotBlank()) {
-                        IconButton(onClick = { onQueryChange("") }) {
+                        IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 Icons.Default.Clear,
-                                "Clear"
+                                "Clear",
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     // FIX: Replaced hardcoded grey with adaptive surfaceVariant
@@ -524,7 +525,8 @@ fun TrainDestinationCard(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.Transparent
                 ),
-                singleLine = true
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall
             )
 
             Row(
@@ -610,7 +612,7 @@ fun TrainDestinationCard(
                 onClick = onOpenLiveBoard,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(40.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary
@@ -626,7 +628,7 @@ fun TrainDestinationCard(
                 enabled = uiState.startNode != null && uiState.endNode != null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .height(44.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Navigation, null)
@@ -1001,8 +1003,8 @@ fun AdvancedSearchCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1041,11 +1043,12 @@ fun AdvancedSearchCard(
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = onSearchQueryChanged,
-                label = { Text("Search node…") },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
-                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search node…", style = MaterialTheme.typography.bodySmall) },
+                leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp)) },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall
             )
 
             Button(
@@ -1053,7 +1056,7 @@ fun AdvancedSearchCard(
                 enabled = uiState.startNode != null && uiState.endNode != null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .height(44.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Navigation, null)
@@ -1264,15 +1267,16 @@ fun ModernNodeSelector(
             value = selectedNode?.properties?.node_name ?: "",
             onValueChange = {},
             readOnly = true,
-            label = { Text(label) },
-            leadingIcon = { Icon(icon, null, tint = iconTint) },
+            placeholder = { Text(label, style = MaterialTheme.typography.bodySmall) },
+            leadingIcon = { Icon(icon, null, tint = iconTint, modifier = Modifier.size(20.dp)) },
             trailingIcon = {
                 if (selectedNode != null) {
-                    IconButton(onClick = onClearSelection) {
+                    IconButton(onClick = onClearSelection, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Default.Clear,
                             "Clear Selection",
-                            tint = MaterialTheme.colorScheme.error
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 } else {
@@ -1281,8 +1285,10 @@ fun ModernNodeSelector(
             },
             modifier = modifier
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .height(48.dp),
             shape = RoundedCornerShape(12.dp),
+            textStyle = MaterialTheme.typography.bodySmall,
             // Visually highlight the box if it is the currently active map-tap target
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
