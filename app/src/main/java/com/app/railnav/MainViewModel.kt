@@ -1,9 +1,20 @@
 package com.app.railnav
 
 import android.app.Application
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.app.railnav.data.*
+import com.app.railnav.data.DirectionGenerator
+import com.app.railnav.data.EdgeFeature
+import com.app.railnav.data.FacilityItem
+import com.app.railnav.data.Graph
+import com.app.railnav.data.GraphNode
+import com.app.railnav.data.GraphRepository
+import com.app.railnav.data.NavigationInstruction
+import com.app.railnav.data.NodeFeature
+import com.app.railnav.data.Pathfinder
+import com.app.railnav.data.TrainRepository
+import com.app.railnav.data.TrainSchedule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -542,39 +553,77 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (referenceLocation == null) return
 
         val allNodes = currentState.allNodeFeatures
-        val queryLower = keyword.lowercase()
 
         val matchedNodes = allNodes.filter { node ->
             val nodeName = node.properties.node_name?.lowercase() ?: ""
-            val nodeType = node.properties.node_type?.lowercase() ?: ""
-            nodeName.contains(queryLower) || nodeType.contains(queryLower)
+            val nodeType = node.properties.node_type?.uppercase() ?: ""
+
+            when (keyword.lowercase()) {
+                "exit" -> nodeType == "ENTRY/EXIT"
+                "stairs" -> nodeType.contains("STAIRWAY")
+                "ticket", "toilet" -> nodeType == "FACILITY" && nodeName.contains(keyword.lowercase())
+                else -> nodeName.contains(keyword.lowercase()) || nodeType.lowercase().contains(keyword.lowercase())
+            }
         }
 
-        if (matchedNodes.isEmpty()) return
-
-        val closestNode = matchedNodes.minByOrNull { node ->
-            GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(referenceLocation)
+        if (matchedNodes.isEmpty()) {
+            Toast.makeText(getApplication(), "No facilities found.", Toast.LENGTH_SHORT).show()
+            return
         }
 
-        if (closestNode != null) {
-            var finalStartNode = currentState.startNode
+        var finalStartNode = currentState.startNode
+        if (finalStartNode == null) {
+            finalStartNode = allNodes.minByOrNull {
+                GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(referenceLocation)
+            }
+        }
+        if (finalStartNode == null) return
 
-            // FIX: Removed the redundant '!= null' warning by knowing referenceLocation enforces it.
-            if (finalStartNode == null) {
-                finalStartNode = allNodes.minByOrNull {
-                    GeoPoint(it.geometry.coordinates[1], it.geometry.coordinates[0]).distanceToAsDouble(currentState.userGpsLocation!!)
+        val startId = finalStartNode.properties.node_id
+
+        _uiState.value = currentState.copy(isLoading = true)
+
+        viewModelScope.launch {
+            val bestTarget = withContext(Dispatchers.Default) {
+                var shortestPathCost = Double.MAX_VALUE
+                var closestFacilityNode: NodeFeature? = null
+
+                // FIX: Calculate actual walking distance using Pathfinder instead of straight-line distance
+                for (targetNode in matchedNodes) {
+                    val targetId = targetNode.properties.node_id
+                    val path = pathfinder.findShortestPath(startId, targetId, currentState.isAccessibleRoutePreferred)
+
+                    if (path != null && path.size > 1) {
+                        var pathDistance = 0.0
+                        for (i in 0 until path.size - 1) {
+                            val p1 = GeoPoint(path[i].coordinates[1], path[i].coordinates[0])
+                            val p2 = GeoPoint(path[i+1].coordinates[1], path[i+1].coordinates[0])
+                            pathDistance += p1.distanceToAsDouble(p2)
+                        }
+
+                        if (pathDistance < shortestPathCost) {
+                            shortestPathCost = pathDistance
+                            closestFacilityNode = targetNode
+                        }
+                    }
+                }
+
+                // Fallback to straight-line distance if no valid path exists (e.g. disconnected nodes)
+                closestFacilityNode ?: matchedNodes.minByOrNull { node ->
+                    GeoPoint(node.geometry.coordinates[1], node.geometry.coordinates[0]).distanceToAsDouble(referenceLocation)
                 }
             }
 
-            _uiState.value = currentState.copy(
-                startNode = finalStartNode,
-                endNode = closestNode,
-                searchQuery = "",
-                searchResults = emptyList()
-            )
-
-            if (finalStartNode != null) {
-                findPath()
+            if (bestTarget != null) {
+                _uiState.value = _uiState.value.copy(
+                    startNode = finalStartNode,
+                    endNode = bestTarget,
+                    searchQuery = "",
+                    searchResults = emptyList()
+                )
+                findPath() // This will draw the final route and turn off the loading spinner
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
     }

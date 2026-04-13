@@ -7,10 +7,10 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.app.railnav.data.EdgeFeatureCollection
 import com.app.railnav.data.NodeFeatureCollection
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
 
-@Database(entities = [NodeEntity::class, EdgeEntity::class], version = 1, exportSchema = false)
+// 1. BUMP VERSION TO 3
+@Database(entities = [NodeEntity::class, EdgeEntity::class], version = 3, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class RailNavDatabase : RoomDatabase() {
 
@@ -20,7 +20,6 @@ abstract class RailNavDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: RailNavDatabase? = null
 
-        // REMOVED "scope: CoroutineScope" from here
         fun getDatabase(context: Context): RailNavDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -28,16 +27,18 @@ abstract class RailNavDatabase : RoomDatabase() {
                     RailNavDatabase::class.java,
                     "railnav_database"
                 )
+                    .fallbackToDestructiveMigration(true)
                     .build()
                 INSTANCE = instance
                 instance
             }
         }
 
-        // ADD THIS: A robust manual seeding function
         suspend fun seedDatabaseIfEmpty(context: Context, database: RailNavDatabase) {
             val dao = database.graphDao()
-            if (dao.getNodeCount() > 0) return // Already seeded!
+            // Because destructive migration wipes the database, getNodeCount() will be 0,
+            // which allows the rest of this function to run and read your new JSON files!
+            if (dao.getNodeCount() > 0) return
 
             try {
                 val json = Json { ignoreUnknownKeys = true }
