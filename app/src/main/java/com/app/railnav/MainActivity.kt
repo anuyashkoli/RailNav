@@ -255,8 +255,14 @@ fun PathfindingScreen(
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
             ) {
-                // Ensure we don't crash if instructions are still generating
                 val currentText = uiState.instructions.getOrNull(uiState.currentInstructionIndex)?.text ?: "Loading steps..."
+
+                // NEW: Scan the route for inaccessible steps!
+                val hasInaccessibleSteps = uiState.instructions.any {
+                    it.text.contains("STAIR", ignoreCase = true) ||
+                            it.text.contains("ESCALATOR", ignoreCase = true)
+                }
+                val showWarning = uiState.isAccessibleRoutePreferred && hasInaccessibleSteps
 
                 TurnByTurnCard(
                     currentInstruction = currentText,
@@ -264,6 +270,7 @@ fun PathfindingScreen(
                     totalInstructions = uiState.instructions.size,
                     totalDistanceMeters = uiState.totalRouteDistanceMeters,
                     etaMinutes = uiState.etaMinutes,
+                    showAccessibilityWarning = showWarning, // <-- PASSED DOWN
                     onNext = { mainViewModel.nextInstruction() },
                     onPrev = { mainViewModel.prevInstruction() },
                     onViewList = { showInstructions = true },
@@ -1289,6 +1296,7 @@ fun TurnByTurnCard(
     totalInstructions: Int,
     totalDistanceMeters: Double,
     etaMinutes: Int,
+    showAccessibilityWarning: Boolean = false, // <-- NEW PARAMETER
     onNext: () -> Unit,
     onPrev: () -> Unit,
     onViewList: () -> Unit,
@@ -1306,6 +1314,38 @@ fun TurnByTurnCard(
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+
+            // ==========================================
+            // NEW: ACCESSIBILITY WARNING BANNER
+            // ==========================================
+            if (showAccessibilityWarning) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Warning",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "No fully accessible route available. This path requires stairs or escalators.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            // ==========================================
+
             // ── Top Row: Step-by-Step Instructions ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1353,13 +1393,8 @@ fun TurnByTurnCard(
                     Text("Exit", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
 
-                // ==========================================
-                // NEW: Distance & ETA Badge
-                // ==========================================
                 val distanceText = if (totalDistanceMeters > 1000) {
-                    // String.format("%.1f km", totalDistanceMeters / 1000.0)
-                    String.format(Locale.US, "%.1f km", totalDistanceMeters / 1000.0)
-
+                    String.format(java.util.Locale.US, "%.1f km", totalDistanceMeters / 1000.0)
                 } else {
                     "${totalDistanceMeters.toInt()} m"
                 }
@@ -1387,7 +1422,6 @@ fun TurnByTurnCard(
                         )
                     }
                 }
-                // ==========================================
 
                 TextButton(onClick = onViewList) {
                     Icon(Icons.Default.FormatListNumbered, contentDescription = null, modifier = Modifier.size(18.dp))
