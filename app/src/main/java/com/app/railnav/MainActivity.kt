@@ -176,7 +176,16 @@ fun PathfindingScreen(
 
                     FacilityQuickChips(
                         onChipSelected = { keyword ->
-                            mainViewModel.routeToNearestFacility(keyword)
+                            // FIX: Intercept the click and check if we have a starting point
+                            if (uiState.startNode == null) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Please set your location by tapping the map or the GPS icon first.",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                mainViewModel.routeToNearestFacility(keyword)
+                            }
                         }
                     )
 
@@ -347,7 +356,7 @@ fun FacilityQuickChips(onChipSelected: (String) -> Unit) {
     val facilities = listOf(
         Pair("Ticket", Icons.Default.ConfirmationNumber),
         Pair("Exit", Icons.AutoMirrored.Filled.ExitToApp),
-        Pair("Platform", Icons.Default.Train),
+        Pair("Toilet", Icons.Default.Wc),
         Pair("Stairs", Icons.Default.Stairs)
     )
 
