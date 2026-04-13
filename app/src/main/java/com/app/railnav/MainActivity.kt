@@ -140,11 +140,15 @@ fun PathfindingScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
                 ) {
                     if (uiState.isAdvancedMode) {
                         AdvancedSearchCard(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
                             uiState = uiState,
                             onStartNodeSelected = { mainViewModel.onStartNodeSelected(it) },
                             onEndNodeSelected = { mainViewModel.onEndNodeSelected(it) },
@@ -161,7 +165,9 @@ fun PathfindingScreen(
                         )
                     } else {
                         TrainDestinationCard(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
                             uiState = uiState,
                             onQueryChange = { mainViewModel.onTrainDestinationQueryChanged(it) },
                             onShowTrains = { mainViewModel.openTrainSheet() },
@@ -227,7 +233,9 @@ fun PathfindingScreen(
                             onResolutionRequired = { resolvableException ->
                                 // GPS is off. Launch the beautiful Google bottom sheet dialog!
                                 try {
-                                    val intentSenderRequest = IntentSenderRequest.Builder(resolvableException.resolution).build()
+                                    val intentSenderRequest =
+                                        IntentSenderRequest.Builder(resolvableException.resolution)
+                                            .build()
                                     settingResultRequest.launch(intentSenderRequest)
                                 } catch (_: Exception) {
                                     // Fallback just in case Google Play Services crashes
@@ -258,7 +266,9 @@ fun PathfindingScreen(
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
             ) {
-                val currentText = uiState.instructions.getOrNull(uiState.currentInstructionIndex)?.text ?: "Loading steps..."
+                val currentText =
+                    uiState.instructions.getOrNull(uiState.currentInstructionIndex)?.text
+                        ?: "Loading steps..."
 
                 // NEW: Scan the route for inaccessible steps!
                 val hasInaccessibleSteps = uiState.instructions.any {
@@ -355,15 +365,21 @@ fun PathfindingScreen(
 
             // ── Live Station Dashboard Sheet ───────────────────────────────
             if (uiState.showLiveBoardSheet) {
+                // NEW: Forces the sheet to open fully instead of pausing halfway
+                val liveBoardSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
                 ModalBottomSheet(
                     onDismissRequest = { mainViewModel.closeLiveBoard() },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.fillMaxHeight(0.85f) // Makes it tall but leaves the map visible
+                    sheetState = liveBoardSheetState,
+                    containerColor = MaterialTheme.colorScheme.surface
+                    // FIX: Removed the modifier from here!
                 ) {
                     LiveTrainDashboardSheet(
                         currentDirection = uiState.liveBoardDirection,
                         onDirectionChanged = { mainViewModel.setLiveBoardDirection(it) },
-                        onClose = { mainViewModel.closeLiveBoard() }
+                        onClose = { mainViewModel.closeLiveBoard() },
+                        // FIX: Applied the height restriction to the content instead
+                        modifier = Modifier.fillMaxHeight(0.85f)
                     )
                 }
             }
@@ -396,7 +412,13 @@ fun FacilityQuickChips(onChipSelected: (String) -> Unit) {
                 selected = false,
                 onClick = { onChipSelected(name) },
                 label = { Text(name, fontWeight = FontWeight.Bold) },
-                leadingIcon = { Icon(icon, contentDescription = name, modifier = Modifier.size(18.dp)) },
+                leadingIcon = {
+                    Icon(
+                        icon,
+                        contentDescription = name,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
                 colors = FilterChipDefaults.elevatedFilterChipColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     labelColor = MaterialTheme.colorScheme.primary,
@@ -440,8 +462,17 @@ fun TrainDestinationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🚆  Where are you going?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                TextButton(onClick = onSwitchToAdvancedMode) { Text("Advanced", style = MaterialTheme.typography.labelSmall) }
+                Text(
+                    "🚆  Where are you going?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                TextButton(onClick = onSwitchToAdvancedMode) {
+                    Text(
+                        "Advanced",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
 
             OutlinedTextField(
@@ -451,7 +482,12 @@ fun TrainDestinationCard(
                 leadingIcon = { Icon(Icons.Default.Train, null) },
                 trailingIcon = {
                     if (uiState.trainDestinationQuery.isNotBlank()) {
-                        IconButton(onClick = { onQueryChange("") }) { Icon(Icons.Default.Clear, "Clear") }
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(
+                                Icons.Default.Clear,
+                                "Clear"
+                            )
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -471,18 +507,33 @@ fun TrainDestinationCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(20.dp)
+                    )
                     Text(
                         uiState.startNode?.properties?.node_name ?: "Tap the map to set start",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (uiState.startNode == null) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
+                        color = if (uiState.startNode == null) MaterialTheme.colorScheme.onSurface.copy(
+                            alpha = 0.5f
+                        ) else MaterialTheme.colorScheme.onSurface
                     )
                 }
 
                 if (uiState.startNode != null) {
                     IconButton(onClick = onClearStartNode, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Clear, "Clear Start Node", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Default.Clear,
+                            "Clear Start Node",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }
@@ -532,7 +583,9 @@ fun TrainDestinationCard(
 
             OutlinedButton(
                 onClick = onOpenLiveBoard,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary
@@ -631,7 +684,9 @@ fun TrainListSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(Modifier
+            .fillMaxWidth()
+            .padding(16.dp)) {
             Text(
                 "Upcoming Trains to $destination",
                 style = MaterialTheme.typography.titleLarge,
@@ -658,7 +713,12 @@ fun TrainListSheet(
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.Bottom) {
                                     // FIX: Removed color = Color.Black, use onSurface
-                                    Text(train.departureTimeString, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(
+                                        train.departureTimeString,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                     Spacer(Modifier.width(8.dp))
                                     Surface(
                                         color = Color(train.type.color).copy(alpha = 0.1f),
@@ -668,23 +728,42 @@ fun TrainListSheet(
                                             train.type.displayName,
                                             color = Color(train.type.color),
                                             style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            modifier = Modifier.padding(
+                                                horizontal = 6.dp,
+                                                vertical = 2.dp
+                                            ),
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
                                 Spacer(Modifier.height(4.dp))
                                 // FIX: Removed Color.Black
-                                Text(train.destination, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    train.destination,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                                 if (train.via.isNotEmpty()) {
                                     // FIX: Replaced Color.DarkGray with onSurfaceVariant
-                                    Text("Via: ${train.via.joinToString()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        "Via: ${train.via.joinToString()}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 // FIX: Removed Color.Black
-                                Text("Platform ${train.platformAtThane}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                                Text(train.direction.displayName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    "Platform ${train.platformAtThane}",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    train.direction.displayName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }
@@ -891,8 +970,9 @@ fun AdvancedSearchCard(
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
-        contentColor = MaterialTheme.colorScheme.onSurface
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -946,7 +1026,9 @@ fun AdvancedSearchCard(
             Button(
                 onClick = onFindPath,
                 enabled = uiState.startNode != null && uiState.endNode != null,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Navigation, null)
@@ -1162,7 +1244,11 @@ fun ModernNodeSelector(
             trailingIcon = {
                 if (selectedNode != null) {
                     IconButton(onClick = onClearSelection) {
-                        Icon(Icons.Default.Clear, "Clear Selection", tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Default.Clear,
+                            "Clear Selection",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 } else {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded)
@@ -1292,7 +1378,9 @@ fun InstructionsSheet(
                 // FIX: Removed color = Color.Black
             )
 
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            LazyColumn(modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)) {
                 itemsIndexed(instructions) { index, instruction ->
                     Row(
                         modifier = Modifier.padding(vertical = 12.dp),
@@ -1305,12 +1393,25 @@ fun InstructionsSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             if (index == instructions.lastIndex)
-                                Icon(Icons.Default.Place, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.Place,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             else
-                                Text("${index + 1}", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "${index + 1}",
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
                         }
                         Spacer(Modifier.width(12.dp))
-                        Text(instruction.text, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            instruction.text,
+                            Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                     if (index < instructions.lastIndex) {
                         HorizontalDivider()
@@ -1355,7 +1456,9 @@ fun TurnByTurnCard(
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1389,7 +1492,9 @@ fun TurnByTurnCard(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Previous Step",
-                        tint = if (currentIndex > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        tint = if (currentIndex > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(
+                            alpha = 0.38f
+                        )
                     )
                 }
 
@@ -1398,14 +1503,18 @@ fun TurnByTurnCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
                 )
 
                 IconButton(onClick = onNext, enabled = currentIndex < totalInstructions - 1) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Next Step",
-                        tint = if (currentIndex < totalInstructions - 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        tint = if (currentIndex < totalInstructions - 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(
+                            alpha = 0.38f
+                        )
                     )
                 }
             }
@@ -1421,9 +1530,17 @@ fun TurnByTurnCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onExit) {
-                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(Modifier.width(4.dp))
-                    Text("Exit", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Exit",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 val distanceText = if (totalDistanceMeters > 1000) {
@@ -1457,9 +1574,16 @@ fun TurnByTurnCard(
                 }
 
                 TextButton(onClick = onViewList) {
-                    Icon(Icons.Default.FormatListNumbered, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Default.FormatListNumbered,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(Modifier.width(4.dp))
-                    Text("Steps (${currentIndex + 1}/$totalInstructions)", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Steps (${currentIndex + 1}/$totalInstructions)",
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
@@ -1481,8 +1605,14 @@ fun DestinationsSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Where are you going?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Column(Modifier
+            .fillMaxWidth()
+            .padding(16.dp)) {
+            Text(
+                "Where are you going?",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
             Spacer(Modifier.height(16.dp))
 
             OutlinedTextField(
@@ -1490,7 +1620,9 @@ fun DestinationsSheet(
                 onValueChange = { searchQuery = it },
                 placeholder = { Text("Search station...") },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     // FIX: Replaced hardcoded grey with adaptive surfaceVariant
@@ -1506,8 +1638,19 @@ fun DestinationsSheet(
                     ListItem(
                         headlineContent = { Text(dest, fontWeight = FontWeight.Medium) },
                         leadingContent = {
-                            Box(Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary.copy(alpha=0.1f), CircleShape), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Train, null, tint = MaterialTheme.colorScheme.primary)
+                            Box(
+                                Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                        CircleShape
+                                    ), contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Train,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             }
                         },
                         modifier = Modifier.clickable { onSelect(dest) },
@@ -1528,7 +1671,8 @@ fun DestinationsSheet(
 fun LiveTrainDashboardSheet(
     currentDirection: TrainDirection,
     onDirectionChanged: (TrainDirection) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     // Ticking clock state
     var currentTimeFormatted by remember { mutableStateOf("") }
@@ -1565,8 +1709,8 @@ fun LiveTrainDashboardSheet(
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
+            .padding(horizontal = 16.dp)
             .padding(horizontal = 16.dp)
     ) {
         // --- Header (Title & Clock) ---
@@ -1576,7 +1720,12 @@ fun LiveTrainDashboardSheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("THANE DEPARTURES", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                Text(
+                    "THANE DEPARTURES",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
+                )
                 Text(
                     text = "Live • $currentTimeFormatted",
                     style = MaterialTheme.typography.labelMedium,
@@ -1595,7 +1744,9 @@ fun LiveTrainDashboardSheet(
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
             shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.fillMaxWidth().height(48.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
                 TrainDirection.entries.forEach { dir ->
@@ -1627,10 +1778,14 @@ fun LiveTrainDashboardSheet(
 
         // --- Live Train List ---
         LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f), // <-- FIX 1: Anchors the list to prevent accidental sheet closing!
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(activeTrains) { train ->
+            // FIX 2: Added a unique 'key' so the layout doesn't bounce when the clock ticks
+            items(activeTrains, key = { it.trainNumber }) { train ->
                 LiveTrainCard(train = train, currentMinutes = currentMinutes)
             }
         }
@@ -1658,7 +1813,9 @@ fun LiveTrainCard(train: TrainSchedule, currentMinutes: Int) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Time & Type
