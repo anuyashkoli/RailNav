@@ -18,7 +18,13 @@ import com.app.railnav.feature.pnr.ui.PnrScreen
 import com.app.railnav.feature.livetrain.ui.LiveTrainScreen
 import com.app.railnav.feature.liveStation.ui.LiveStationScreen
 import com.app.railnav.feature.schedule.ui.TrainScheduleScreen
+import com.app.railnav.ui.theme.RailNavTheme
 import kotlinx.coroutines.launch
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 
 private data class DrawerItem(
     val route: String,
@@ -41,11 +47,13 @@ fun AppNavGraph(
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    var isDarkTheme by remember { mutableStateOf(false) }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = drawerState.isOpen,
-        drawerContent = {
+    RailNavTheme(darkTheme = isDarkTheme) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = drawerState.isOpen,
+            drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier.width(320.dp),
                 drawerContainerColor = MaterialTheme.colorScheme.surface
@@ -87,18 +95,25 @@ fun AppNavGraph(
                     }
                 }
             }
-        }
-    ) {
-        NavHost(
-            navController = navController,
-            startDestination = "map",
-            modifier = modifier
         ) {
-            composable("map") {
-                PathfindingScreen(onOpenDrawer = {
-                    scope.launch { drawerState.open() }
-                })
-            }
+            NavHost(
+                navController = navController,
+                startDestination = "map",
+                modifier = modifier,
+                enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)) },
+                exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)) },
+                popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)) },
+                popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)) }
+            ) {
+                composable("map") {
+                    PathfindingScreen(
+                        isDarkTheme = isDarkTheme,
+                        onToggleTheme = { isDarkTheme = !isDarkTheme },
+                        onOpenDrawer = {
+                            scope.launch { drawerState.open() }
+                        }
+                    )
+                }
             composable("pnr") {
                 PnrScreen(onBack = { navController.popBackStack() })
             }
@@ -113,4 +128,5 @@ fun AppNavGraph(
             }
         }
     }
+}
 }

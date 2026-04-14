@@ -70,6 +70,8 @@ fun PathfindingScreen(
     modifier: Modifier = Modifier,
     mainViewModel: MainViewModel = viewModel(),
     liveBoardViewModel: com.app.railnav.feature.liveboard.viewmodel.LiveBoardViewModel = viewModel(),
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
     onOpenDrawer: () -> Unit = {}
 ) {
     val uiState by mainViewModel.uiState.collectAsState()
@@ -79,7 +81,6 @@ fun PathfindingScreen(
     val scope = rememberCoroutineScope()
 
     var showInstructions by remember { mutableStateOf(false) }
-    var isDarkTheme by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -126,8 +127,7 @@ fun PathfindingScreen(
         mainViewModel.clearSelectedTrain()
     }
 
-    RailNavTheme(darkTheme = isDarkTheme) {
-        Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
 
             // ── Map ────────────────────────────────────────────────────────
             MapView(
@@ -238,7 +238,7 @@ fun PathfindingScreen(
             // ---------------- Map Controls ----------------
             MapControls(
                 isDarkTheme = isDarkTheme,
-                onToggleTheme = { isDarkTheme = !isDarkTheme },
+                onToggleTheme = onToggleTheme,
                 onMyLocationClick = {
                     if (locationHandler.hasLocationPermission()) {
                         // NEW LOGIC: Ask Google to check settings
@@ -438,7 +438,6 @@ fun PathfindingScreen(
             }
 
         }
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
