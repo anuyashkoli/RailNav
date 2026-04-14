@@ -3,7 +3,7 @@ package com.app.railnav.feature.schedule.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.railnav.core.data.repository.IRCTCRepository
-import com.app.railnav.core.data.remote.models.TrainScheduleData
+import com.app.railnav.core.data.remote.models.ScheduleStation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +13,7 @@ import javax.inject.Inject
 
 data class TrainScheduleUiState(
     val isLoading: Boolean = false,
-    val schedule: TrainScheduleData? = null,
+    val stations: List<ScheduleStation> = emptyList(),
     val error: String? = null,
     val trainNumberQuery: String = ""
 )
@@ -39,20 +39,28 @@ class TrainScheduleViewModel @Inject constructor(
             return
         }
 
-        _uiState.value = _uiState.value.copy(isLoading = true, error = null, schedule = null)
+        _uiState.value = _uiState.value.copy(isLoading = true, error = null, stations = emptyList())
 
         viewModelScope.launch {
             repository.getTrainSchedule(trainNo)
                 .onSuccess { response ->
                     if (response.success && response.data != null) {
+                        // Filter to stopping stations only (skip pass-throughs)
+                        val allStations = response.data
+                        val stoppingStations = if (allStations.size > 2) {
+                            listOf(allStations.first()) +
+                            allStations.drop(1).dropLast(1).filter { it.isStopping } +
+                            listOf(allStations.last())
+                        } else allStations
+                        
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            schedule = response.data
+                            stations = stoppingStations
                         )
                     } else {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            error = response.error ?: "Schedule not found"
+                            error = response.errorMessage ?: "Schedule not found"
                         )
                     }
                 }

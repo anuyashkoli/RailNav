@@ -46,12 +46,12 @@ class LiveStationViewModel @Inject constructor(
                     if (response.success && response.data != null) {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            trains = response.data
+                            trains = response.data.trains
                         )
                     } else {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            error = response.error ?: "No departures found"
+                            error = response.errorMessage ?: "No departures found"
                         )
                     }
                 }

@@ -27,14 +27,14 @@ interface IRCTCApi {
     // 3. Live Station Departures
     @GET("liveStation")
     suspend fun getLiveStation(
-        @Query("stationCode") stationCode: String,
+        @Query("source") stationCode: String,
         @Query("hours") hours: String = "4"
     ): LiveStationResponse
 
     // 4. Train Schedule
     @GET("trainSchedule")
     suspend fun getTrainSchedule(
-        @Query("trainNo") trainNumber: String
+        @Query("trainNumber") trainNumber: String
     ): TrainScheduleResponse
 
     // 5. Train Name from Number
