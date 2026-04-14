@@ -2,6 +2,8 @@ package com.app.railnav
 
 import android.app.Application
 import android.widget.Toast
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.railnav.data.DirectionGenerator
@@ -77,9 +79,6 @@ data class MainUiState(
     val liveBoardDirection: TrainDirection = TrainDirection.DOWN,
     val showMiniLiveBoard: Boolean = true
 )
-
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
