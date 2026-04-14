@@ -1,51 +1,44 @@
 package com.app.railnav.core.data.remote
 
-import com.app.railnav.core.data.remote.models.PnrResponse
-import com.app.railnav.core.data.remote.models.LiveTrainResponse
-import com.app.railnav.core.data.remote.models.LiveStationResponse
-import com.app.railnav.core.data.remote.models.TrainScheduleResponse
-import com.app.railnav.core.data.remote.models.TrainSearchResponse
-import com.app.railnav.core.data.remote.models.StationSearchResponse
+import com.app.railnav.core.data.remote.models.*
 import retrofit2.http.GET
 import retrofit2.http.Query
 
+/**
+ * Retrofit interface for the IRCTC RapidAPI (irctc-api2.p.rapidapi.com).
+ * Headers (x-rapidapi-key, x-rapidapi-host) are injected by OkHttp interceptor in NetworkModule.
+ */
 interface IRCTCApi {
 
-    // 1. PNR Status Check
-    @GET("pnrStatus")
+    @GET("api/v1/checkPNRstatus")
     suspend fun getPnrStatus(
-        @Query("pnr") pnrNumber: String
+        @Query("pnrNumber") pnrNumber: String
     ): PnrResponse
 
-    // 2. Live Train Status
-    @GET("liveTrain")
+    @GET("api/v3/getLiveTrainStatus")
     suspend fun getLiveTrainStatus(
-        @Query("trainNumber") trainNumber: String,
+        @Query("trainNo") trainNo: String,
         @Query("startDay") startDay: String
     ): LiveTrainResponse
 
-    // 3. Live Station Departures
-    @GET("liveStation")
+    @GET("api/v1/liveStation")
     suspend fun getLiveStation(
-        @Query("source") stationCode: String,
-        @Query("hours") hours: String = "4"
+        @Query("stationCode") stationCode: String,
+        @Query("hours") hours: String
     ): LiveStationResponse
 
-    // 4. Train Schedule
-    @GET("trainSchedule")
+    @GET("api/v1/getTrainSchedule")
     suspend fun getTrainSchedule(
-        @Query("trainNumber") trainNumber: String
-    ): TrainScheduleResponse
+        @Query("trainNo") trainNo: String
+    ): ScheduleResponse
 
-    // 5. Train Name from Number
-    @GET("trainSearch")
+    @GET("api/v1/searchTrain")
     suspend fun searchTrain(
-        @Query("query") trainNumber: String
+        @Query("query") query: String
     ): TrainSearchResponse
 
-    // 6. Station Name from Code
-    @GET("stationSearch")
+    @GET("api/v1/searchStation")
     suspend fun searchStation(
-        @Query("query") stationQuery: String
+        @Query("query") query: String
     ): StationSearchResponse
 }

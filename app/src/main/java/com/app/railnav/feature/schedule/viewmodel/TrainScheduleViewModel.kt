@@ -11,20 +11,35 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.app.railnav.core.data.local.dao.SearchHistoryDao
+import com.app.railnav.core.data.local.entity.SearchHistoryEntity
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+
 data class TrainScheduleUiState(
     val isLoading: Boolean = false,
     val stations: List<ScheduleStation> = emptyList(),
     val error: String? = null,
-    val trainNumberQuery: String = ""
+    val trainNumberQuery: String = "",
+    val searchHistory: List<SearchHistoryEntity> = emptyList()
 )
 
 @HiltViewModel
 class TrainScheduleViewModel @Inject constructor(
-    private val repository: IRCTCRepository
+    private val repository: IRCTCRepository,
+    private val searchHistoryDao: SearchHistoryDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TrainScheduleUiState())
     val uiState: StateFlow<TrainScheduleUiState> = _uiState.asStateFlow()
+
+    init {
+        searchHistoryDao.getRecentSearches("SCHEDULE", 3)
+            .onEach { history ->
+                _uiState.value = _uiState.value.copy(searchHistory = history)
+            }
+            .launchIn(viewModelScope)
+    }
 
     fun onTrainNumberChanged(query: String) {
         if (query.length <= 5) {
@@ -57,6 +72,7 @@ class TrainScheduleViewModel @Inject constructor(
                             isLoading = false,
                             stations = stoppingStations
                         )
+                        searchHistoryDao.insertSearch(SearchHistoryEntity(query = trainNo, searchType = "SCHEDULE"))
                     } else {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,

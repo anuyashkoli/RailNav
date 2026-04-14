@@ -95,6 +95,7 @@ fun AppNavGraph(
                     }
                 }
             }
+        }
         ) {
             NavHost(
                 navController = navController,
@@ -114,19 +115,19 @@ fun AppNavGraph(
                         }
                     )
                 }
-            composable("pnr") {
-                PnrScreen(onBack = { navController.popBackStack() })
-            }
-            composable("livetrain") {
-                LiveTrainScreen(onBack = { navController.popBackStack() })
-            }
-            composable("livestation") {
-                LiveStationScreen(onBack = { navController.popBackStack() })
-            }
-            composable("schedule") {
-                TrainScheduleScreen(onBack = { navController.popBackStack() })
+                composable("pnr") {
+                    PnrScreen(onBack = { navController.popBackStack() })
+                }
+                composable("livetrain") {
+                    LiveTrainScreen(onBack = { navController.popBackStack() })
+                }
+                composable("livestation") {
+                    LiveStationScreen(onBack = { navController.popBackStack() })
+                }
+                composable("schedule") {
+                    TrainScheduleScreen(onBack = { navController.popBackStack() })
+                }
             }
         }
     }
-}
 }

@@ -11,21 +11,36 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.app.railnav.core.data.local.dao.SearchHistoryDao
+import com.app.railnav.core.data.local.entity.SearchHistoryEntity
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+
 data class LiveStationUiState(
     val isLoading: Boolean = false,
     val trains: List<LiveStationTrain> = emptyList(),
     val error: String? = null,
     val stationCodeQuery: String = "",
-    val stationName: String = ""
+    val stationName: String = "",
+    val searchHistory: List<SearchHistoryEntity> = emptyList()
 )
 
 @HiltViewModel
 class LiveStationViewModel @Inject constructor(
-    private val repository: IRCTCRepository
+    private val repository: IRCTCRepository,
+    private val searchHistoryDao: SearchHistoryDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LiveStationUiState())
     val uiState: StateFlow<LiveStationUiState> = _uiState.asStateFlow()
+
+    init {
+        searchHistoryDao.getRecentSearches("STATION", 3)
+            .onEach { history ->
+                _uiState.value = _uiState.value.copy(searchHistory = history)
+            }
+            .launchIn(viewModelScope)
+    }
 
     fun onStationCodeChanged(query: String) {
         _uiState.value = _uiState.value.copy(stationCodeQuery = query.uppercase())
@@ -48,6 +63,7 @@ class LiveStationViewModel @Inject constructor(
                             isLoading = false,
                             trains = response.data.trains
                         )
+                        searchHistoryDao.insertSearch(SearchHistoryEntity(query = code, searchType = "STATION"))
                     } else {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,

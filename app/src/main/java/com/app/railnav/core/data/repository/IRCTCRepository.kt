@@ -6,40 +6,27 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Central repository wrapping all IRCTC API calls.
- * ViewModels should depend on this, not on the raw API interface.
+ * Repository wrapper around [IRCTCApi] that catches network exceptions
+ * and returns Result<T> for safe consumption by ViewModels.
  */
 @Singleton
 class IRCTCRepository @Inject constructor(
     private val api: IRCTCApi
 ) {
-    // 1. PNR Status
-    suspend fun getPnrStatus(pnr: String): Result<PnrResponse> = runCatching {
-        api.getPnrStatus(pnr)
+
+    suspend fun getLiveStation(stationCode: String, hours: String): Result<LiveStationResponse> {
+        return runCatching { api.getLiveStation(stationCode, hours) }
     }
 
-    // 2. Live Train Status
-    suspend fun getLiveTrainStatus(trainNumber: String, startDay: String = "0"): Result<LiveTrainResponse> = runCatching {
-        api.getLiveTrainStatus(trainNumber, startDay)
+    suspend fun getTrainSchedule(trainNo: String): Result<ScheduleResponse> {
+        return runCatching { api.getTrainSchedule(trainNo) }
     }
 
-    // 3. Live Station Departures (next N hours)
-    suspend fun getLiveStation(stationCode: String, hours: String = "4"): Result<LiveStationResponse> = runCatching {
-        api.getLiveStation(stationCode, hours)
+    suspend fun searchTrain(query: String): Result<TrainSearchResponse> {
+        return runCatching { api.searchTrain(query) }
     }
 
-    // 4. Train Schedule (all stops)
-    suspend fun getTrainSchedule(trainNumber: String): Result<TrainScheduleResponse> = runCatching {
-        api.getTrainSchedule(trainNumber)
-    }
-
-    // 5. Train Name lookup from number
-    suspend fun searchTrain(query: String): Result<TrainSearchResponse> = runCatching {
-        api.searchTrain(query)
-    }
-
-    // 6. Station Name lookup from code
-    suspend fun searchStation(query: String): Result<StationSearchResponse> = runCatching {
-        api.searchStation(query)
+    suspend fun searchStation(query: String): Result<StationSearchResponse> {
+        return runCatching { api.searchStation(query) }
     }
 }

@@ -4,6 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +30,8 @@ import com.app.railnav.feature.livetrain.viewmodel.LiveTrainViewModel
 import com.app.railnav.core.data.remote.models.LiveTrainData
 import com.app.railnav.core.data.remote.models.CurrentLocationInfo
 
+private fun String.titleCase() = this.lowercase().split(" ").joinToString(" ") { it.replaceFirstChar { char -> char.uppercase() } }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveTrainScreen(
@@ -35,6 +40,11 @@ fun LiveTrainScreen(
     onBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    DisposableEffect(Unit) {
+        viewModel.startPolling()
+        onDispose { viewModel.stopPolling() }
+    }
 
     Scaffold(
         topBar = {
@@ -86,6 +96,25 @@ fun LiveTrainScreen(
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         Icon(Icons.Default.Search, null, Modifier.size(28.dp))
+                    }
+                }
+            }
+
+            // -- Search History --
+            if (uiState.searchHistory.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.searchHistory) { history ->
+                        AssistChip(
+                            onClick = { 
+                                viewModel.onTrainNumberChanged(history.query)
+                                viewModel.fetchLiveStatus()
+                            },
+                            label = { Text(history.query) },
+                            leadingIcon = { Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
                     }
                 }
             }
@@ -180,6 +209,18 @@ fun LiveHeroCard(data: LiveTrainData) {
                 }
             }
 
+            Spacer(Modifier.height(8.dp))
+
+            // Where is the train?
+            if (data.currentStationName.isNotBlank()) {
+                Text(
+                    "Near ${data.currentStationName.titleCase()}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+
             Spacer(Modifier.height(12.dp))
 
             Text(
@@ -222,7 +263,7 @@ fun LiveHeroCard(data: LiveTrainData) {
                     ) {
                         Column {
                             Text(nextStop.nextStoppageTitle, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
-                            Text(nextStop.nextStoppage, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                            Text(nextStop.nextStoppage.titleCase(), color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                         }
                         Text(nextStop.nextStoppageTimeDiff, color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }

@@ -13,21 +13,56 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import com.app.railnav.core.data.local.dao.SearchHistoryDao
+import com.app.railnav.core.data.local.entity.SearchHistoryEntity
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 data class LiveTrainUiState(
     val isLoading: Boolean = false,
     val result: LiveTrainResponse? = null,
     val error: String? = null,
-    val trainNumberQuery: String = ""
+    val trainNumberQuery: String = "",
+    val searchHistory: List<SearchHistoryEntity> = emptyList()
 )
 
 @HiltViewModel
 class LiveTrainViewModel @Inject constructor(
-    private val api: IRCTCApi
+    private val api: IRCTCApi,
+    private val searchHistoryDao: SearchHistoryDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LiveTrainUiState())
     val uiState: StateFlow<LiveTrainUiState> = _uiState.asStateFlow()
+
+    private var pollingJob: Job? = null
+
+    init {
+        searchHistoryDao.getRecentSearches("LIVETRAIN", 3)
+            .onEach { history ->
+                _uiState.value = _uiState.value.copy(searchHistory = history)
+            }
+            .launchIn(viewModelScope)
+    }
+
+    fun startPolling() {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (isActive) {
+                if (_uiState.value.trainNumberQuery.length == 5) {
+                    fetchLiveStatus()
+                }
+                delay(30000) // Poll every 30 seconds
+            }
+        }
+    }
+
+    fun stopPolling() {
+        pollingJob?.cancel()
+    }
 
     fun onTrainNumberChanged(query: String) {
         if (query.length <= 5) {
@@ -53,6 +88,7 @@ class LiveTrainViewModel @Inject constructor(
                         isLoading = false,
                         result = response
                     )
+                    searchHistoryDao.insertSearch(SearchHistoryEntity(query = trainNo, searchType = "LIVETRAIN"))
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,

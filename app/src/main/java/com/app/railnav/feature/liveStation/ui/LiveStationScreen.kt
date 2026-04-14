@@ -3,12 +3,14 @@ package com.app.railnav.feature.liveStation.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -74,7 +76,26 @@ fun LiveStationScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            // -- Search History --
+            if (uiState.searchHistory.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.searchHistory) { history ->
+                        AssistChip(
+                            onClick = { 
+                                viewModel.onStationCodeChanged(history.query)
+                                viewModel.fetchDepartures()
+                            },
+                            label = { Text(history.query) },
+                            leadingIcon = { Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
+                    }
+                }
+            }
+            
+            Spacer(Modifier.height(8.dp))
 
             // Loading
             if (uiState.isLoading) {
@@ -135,9 +156,9 @@ private fun DepartureCard(train: LiveStationTrain) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Platform badge
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(56.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.verticalGradient(
@@ -147,8 +168,15 @@ private fun DepartureCard(train: LiveStationTrain) {
                             )
                         )
                     ),
-                contentAlignment = Alignment.Center
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
+                Text(
+                    "PF",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Bold
+                )
                 Text(
                     train.platform ?: "?",
                     style = MaterialTheme.typography.titleMedium,

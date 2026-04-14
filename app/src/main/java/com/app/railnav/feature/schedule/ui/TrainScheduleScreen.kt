@@ -3,12 +3,15 @@ package com.app.railnav.feature.schedule.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -72,7 +75,26 @@ fun TrainScheduleScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            // -- Search History --
+            if (uiState.searchHistory.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.searchHistory) { history ->
+                        AssistChip(
+                            onClick = { 
+                                viewModel.onTrainNumberChanged(history.query)
+                                viewModel.fetchSchedule()
+                            },
+                            label = { Text(history.query) },
+                            leadingIcon = { Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
+                    }
+                }
+            }
+            
+            Spacer(Modifier.height(8.dp))
 
             // Loading
             if (uiState.isLoading) {
@@ -135,6 +157,8 @@ private fun StationTimelineItem(
     isLast: Boolean,
     number: Int
 ) {
+    val isThane = station.stationCode.equals("TNA", ignoreCase = true) || station.stationName.contains("THANE", ignoreCase = true)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -185,7 +209,9 @@ private fun StationTimelineItem(
         Card(
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(
-                containerColor = if (isFirst || isLast) 
+                containerColor = if (isThane)
+                    MaterialTheme.colorScheme.primaryContainer
+                else if (isFirst || isLast) 
                     MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.surfaceContainerLow
             ),
@@ -203,7 +229,8 @@ private fun StationTimelineItem(
                     Text(
                         station.stationName,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isFirst || isLast) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = if (isFirst || isLast || isThane) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isThane) MaterialTheme.colorScheme.onPrimaryContainer else Color.Unspecified,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -211,7 +238,7 @@ private fun StationTimelineItem(
                     Text(
                         "${station.stationCode}  •  Day ${station.day}$distText",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isThane) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -227,11 +254,11 @@ private fun StationTimelineItem(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    station.haltTime?.let {
+                     station.haltTime?.let {
                         Text(
                             "halt $it",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary
+                            color = if (isThane) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.tertiary
                         )
                     }
                 }

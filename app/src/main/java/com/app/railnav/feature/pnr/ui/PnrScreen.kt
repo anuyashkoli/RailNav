@@ -4,12 +4,14 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -92,6 +94,25 @@ fun PnrScreen(
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         Icon(Icons.Default.Search, null, Modifier.size(28.dp))
+                    }
+                }
+            }
+
+            // -- Search History --
+            if (uiState.searchHistory.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.searchHistory) { history ->
+                        AssistChip(
+                            onClick = { 
+                                viewModel.onSearchQueryChanged(history.query)
+                                viewModel.fetchPnrStatus()
+                            },
+                            label = { Text(history.query) },
+                            leadingIcon = { Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
                     }
                 }
             }

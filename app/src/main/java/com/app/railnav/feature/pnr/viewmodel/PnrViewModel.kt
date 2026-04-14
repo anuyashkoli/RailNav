@@ -10,22 +10,36 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.app.railnav.core.data.local.dao.SearchHistoryDao
+import com.app.railnav.core.data.local.entity.SearchHistoryEntity
 import com.app.railnav.core.data.remote.models.PnrResponse
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 data class PnrUiState(
     val isLoading: Boolean = false,
     val result: PnrResponse? = null,
     val error: String? = null,
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    val searchHistory: List<SearchHistoryEntity> = emptyList()
 )
 
 @HiltViewModel
 class PnrViewModel @Inject constructor(
-    private val api: IRCTCApi
+    private val api: IRCTCApi,
+    private val searchHistoryDao: SearchHistoryDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PnrUiState())
     val uiState: StateFlow<PnrUiState> = _uiState.asStateFlow()
+
+    init {
+        searchHistoryDao.getRecentSearches("PNR", 3)
+            .onEach { history ->
+                _uiState.value = _uiState.value.copy(searchHistory = history)
+            }
+            .launchIn(viewModelScope)
+    }
 
     fun onSearchQueryChanged(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
@@ -49,6 +63,7 @@ class PnrViewModel @Inject constructor(
                         isLoading = false,
                         result = response
                     )
+                    searchHistoryDao.insertSearch(SearchHistoryEntity(query = pnr, searchType = "PNR"))
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
