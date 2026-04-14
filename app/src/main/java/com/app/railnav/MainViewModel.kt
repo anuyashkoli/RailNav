@@ -72,12 +72,7 @@ data class MainUiState(
     val showFacilitiesSheet: Boolean = false,
 
     val totalRouteDistanceMeters: Double = 0.0,
-    val etaMinutes: Int = 0,
-
-    // Live Board State
-    val showLiveBoardSheet: Boolean = false,
-    val liveBoardDirection: TrainDirection = TrainDirection.DOWN,
-    val showMiniLiveBoard: Boolean = true
+    val etaMinutes: Int = 0
 )
 
 @HiltViewModel
@@ -667,23 +662,4 @@ class MainViewModel @Inject constructor(
     }
 
     // ======================================================================
-    // LIVE BOARD DASHBOARD LOGIC
-    // ======================================================================
-
-    fun openLiveBoard() {
-        _uiState.value = _uiState.value.copy(showLiveBoardSheet = true, showMiniLiveBoard = true)
-    }
-
-    fun closeLiveBoard() {
-        _uiState.value = _uiState.value.copy(showLiveBoardSheet = false)
-    }
-
-    fun closeMiniLiveBoard() {
-        _uiState.value = _uiState.value.copy(showMiniLiveBoard = false)
-    }
-
-    fun setLiveBoardDirection(direction: TrainDirection) {
-        _uiState.value = _uiState.value.copy(liveBoardDirection = direction)
-    }
-
 }
