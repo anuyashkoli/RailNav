@@ -1,6 +1,7 @@
 package com.app.railnav.core.data.remote
 
-import kotlinx.serialization.json.JsonObject
+import com.app.railnav.core.data.remote.models.PnrResponse
+import com.app.railnav.core.data.remote.models.LiveTrainResponse
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -11,7 +12,13 @@ interface IRCTCApi {
     @GET("pnrStatus")
     suspend fun getPnrStatus(
         @Query("pnr") pnrNumber: String
-    ): JsonObject
+    ): PnrResponse
     
-    // We will add more endpoints (Live Station, Train Schedule) here!
+    // Live Train Status
+    // Example: GET /liveTrainStatus?trainNo=12321&date=14-04-2026
+    @GET("liveTrainStatus")
+    suspend fun getLiveTrainStatus(
+        @Query("trainNo") trainNumber: String,
+        @Query("date") date: String
+    ): LiveTrainResponse
 }

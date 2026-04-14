@@ -16,7 +16,7 @@ fun AppNavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = "pnr",
+        startDestination = "map",
         modifier = modifier
     ) {
         composable("map") {
