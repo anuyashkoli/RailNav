@@ -46,10 +46,8 @@ class LiveTrainViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                // Formatting today's date to DD-MM-YYYY as expected by the API
-                val today = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).format(Date())
-                
-                val response = api.getLiveTrainStatus(trainNo, today)
+                // startDay: 0 = today, 1 = yesterday, etc.
+                val response = api.getLiveTrainStatus(trainNo, "0")
                 if (response.success) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
