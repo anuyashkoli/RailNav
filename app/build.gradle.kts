@@ -6,6 +6,16 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+import java.util.Properties
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+val rapidApiKey = localProperties.getProperty("RAPID_API_KEY") ?: ""
+
+
 android {
     namespace = "com.app.railnav"
     compileSdk = 36
@@ -18,6 +28,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        buildConfigField("String", "RAPID_API_KEY", rapidApiKey.let { if (it.startsWith("\"")) it else "\"$it\"" })
     }
 
     buildTypes {
@@ -40,6 +52,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

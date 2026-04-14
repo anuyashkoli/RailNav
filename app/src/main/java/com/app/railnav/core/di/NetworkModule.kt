@@ -20,8 +20,7 @@ import java.util.concurrent.TimeUnit
 object NetworkModule {
 
     private const val BASE_URL = "https://irctc-api2.p.rapidapi.com/"
-    // Note: Best practice is placing this in BuildConfig or local.properties, but for development speed we inject here
-    private const val RAPID_API_KEY = "f1207f505dmsh7e8c7533c3f8f4dp11f1e9jsn498a3d1e06f5"
+    private val RAPID_API_KEY = com.app.railnav.BuildConfig.RAPID_API_KEY
     private const val RAPID_API_HOST = "irctc-api2.p.rapidapi.com"
 
     @Provides
