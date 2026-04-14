@@ -89,7 +89,8 @@ fun TrainScheduleScreen(
             }
 
             // Schedule data
-            uiState.schedule?.let { schedule ->
+            if (uiState.stations.isNotEmpty()) {
+                val stations = uiState.stations
                 // Train header card
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -97,13 +98,13 @@ fun TrainScheduleScreen(
                 ) {
                     Column(Modifier.padding(16.dp)) {
                         Text(
-                            schedule.trainName,
+                            "Train #${uiState.trainNumberQuery}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            "Train #${schedule.trainNumber}  •  ${schedule.stations.size} stops",
+                            "${stations.size} stopping stations",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                         )
@@ -116,9 +117,9 @@ fun TrainScheduleScreen(
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    itemsIndexed(schedule.stations) { index, station ->
+                    itemsIndexed(stations) { index, station ->
                         val isFirst = index == 0
-                        val isLast = index == schedule.stations.lastIndex
+                        val isLast = index == stations.lastIndex
                         StationTimelineItem(station, isFirst, isLast, index + 1)
                     }
                 }
@@ -206,8 +207,9 @@ private fun StationTimelineItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    val distText = if (station.distance != "0") "  •  ${station.distance} km" else ""
                     Text(
-                        "${station.stationCode}  •  Day ${station.day}  •  ${station.distance} km",
+                        "${station.stationCode}  •  Day ${station.day}$distText",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
