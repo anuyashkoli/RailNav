@@ -98,6 +98,22 @@ fun LiveTrainScreen(
                         Icon(Icons.Default.Search, null, Modifier.size(28.dp))
                     }
                 }
+
+                // Day selector row
+                val dayOptions = listOf("0" to "Today", "1" to "Yesterday", "2" to "2 Days Ago")
+                Row(
+                    Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    dayOptions.forEach { (value, label) ->
+                        val selected = uiState.startDay == value
+                        FilterChip(
+                            selected = selected,
+                            onClick = { viewModel.onStartDayChanged(value) },
+                            label = { Text(label, style = MaterialTheme.typography.labelMedium) }
+                        )
+                    }
+                }
             }
 
             // -- Search History --

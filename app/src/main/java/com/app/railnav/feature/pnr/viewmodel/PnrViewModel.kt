@@ -67,7 +67,7 @@ class PnrViewModel @Inject constructor(
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = response.error ?: "API returned error: No success"
+                        error = response.errorMessage ?: "API returned error"
                     )
                 }
             } catch (e: Exception) {

@@ -2,15 +2,18 @@ package com.app.railnav.core.data.remote.models
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 // ── Train Schedule ──────────────────────────────────────────
 
 @Serializable
 data class ScheduleResponse(
     val success: Boolean = false,
-    @SerialName("error") val errorMessage: String? = null,
+    val error: JsonElement? = null,
     val data: List<ScheduleStation>? = null
-)
+) {
+    val errorMessage: String? get() = error?.extractMessage()
+}
 
 @Serializable
 data class ScheduleStation(

@@ -2,15 +2,18 @@ package com.app.railnav.core.data.remote.models
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 // ── Live Station Departures ─────────────────────────────────
 
 @Serializable
 data class LiveStationResponse(
     val success: Boolean = false,
-    @SerialName("error") val errorMessage: String? = null,
+    val error: JsonElement? = null,
     val data: LiveStationData? = null
-)
+) {
+    val errorMessage: String? get() = error?.extractMessage()
+}
 
 @Serializable
 data class LiveStationData(

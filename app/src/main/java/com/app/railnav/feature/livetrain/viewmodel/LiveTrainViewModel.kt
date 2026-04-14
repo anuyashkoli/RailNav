@@ -26,6 +26,7 @@ data class LiveTrainUiState(
     val result: LiveTrainResponse? = null,
     val error: String? = null,
     val trainNumberQuery: String = "",
+    val startDay: String = "0",   // 0 = today, 1 = yesterday, 2 = 2 days ago
     val searchHistory: List<SearchHistoryEntity> = emptyList()
 )
 
@@ -70,6 +71,10 @@ class LiveTrainViewModel @Inject constructor(
         }
     }
 
+    fun onStartDayChanged(day: String) {
+        _uiState.value = _uiState.value.copy(startDay = day)
+    }
+
     fun fetchLiveStatus() {
         val trainNo = _uiState.value.trainNumberQuery
         if (trainNo.length != 5) {
@@ -81,8 +86,7 @@ class LiveTrainViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                // startDay: 0 = today, 1 = yesterday, etc.
-                val response = api.getLiveTrainStatus(trainNo, "0")
+                val response = api.getLiveTrainStatus(trainNo, _uiState.value.startDay)
                 if (response.success) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -92,7 +96,7 @@ class LiveTrainViewModel @Inject constructor(
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = response.error ?: "API returned Error"
+                        error = response.errorMessage ?: "API returned error"
                     )
                 }
             } catch (e: Exception) {
