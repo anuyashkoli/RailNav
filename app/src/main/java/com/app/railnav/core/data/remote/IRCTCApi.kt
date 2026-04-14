@@ -10,34 +10,34 @@ import retrofit2.http.Query
  */
 interface IRCTCApi {
 
-    @GET("api/v1/checkPNRstatus")
+    @GET("pnrStatus")
     suspend fun getPnrStatus(
         @Query("pnrNumber") pnrNumber: String
     ): PnrResponse
 
-    @GET("api/v3/getLiveTrainStatus")
+    @GET("liveTrain")
     suspend fun getLiveTrainStatus(
         @Query("trainNo") trainNo: String,
         @Query("startDay") startDay: String
     ): LiveTrainResponse
 
-    @GET("api/v1/liveStation")
+    @GET("liveStation")
     suspend fun getLiveStation(
         @Query("stationCode") stationCode: String,
         @Query("hours") hours: String
     ): LiveStationResponse
 
-    @GET("api/v1/getTrainSchedule")
+    @GET("trainSchedule")
     suspend fun getTrainSchedule(
         @Query("trainNo") trainNo: String
     ): ScheduleResponse
 
-    @GET("api/v1/searchTrain")
+    @GET("trainSearch")
     suspend fun searchTrain(
         @Query("query") query: String
     ): TrainSearchResponse
 
-    @GET("api/v1/searchStation")
+    @GET("stationSearch")
     suspend fun searchStation(
         @Query("query") query: String
     ): StationSearchResponse
