@@ -69,7 +69,8 @@ import dagger.hilt.android.AndroidEntryPoint
 fun PathfindingScreen(
     modifier: Modifier = Modifier,
     mainViewModel: MainViewModel = viewModel(),
-    liveBoardViewModel: com.app.railnav.feature.liveboard.viewmodel.LiveBoardViewModel = viewModel()
+    liveBoardViewModel: com.app.railnav.feature.liveboard.viewmodel.LiveBoardViewModel = viewModel(),
+    onOpenDrawer: () -> Unit = {}
 ) {
     val uiState by mainViewModel.uiState.collectAsState()
     val liveBoardUiState by liveBoardViewModel.uiState.collectAsState()
@@ -173,7 +174,8 @@ fun PathfindingScreen(
                             // FIX: Passing the viewmodel calls as lambdas to resolve Unresolved References!
                             onClearStartNode = { mainViewModel.clearStartNode() },
                             onClearEndNode = { mainViewModel.clearEndNode() },
-                            mainViewModel = mainViewModel
+                            mainViewModel = mainViewModel,
+                            onMenuClick = onOpenDrawer
                         )
                     } else {
                         TrainDestinationCard(
@@ -190,6 +192,7 @@ fun PathfindingScreen(
                             onClearStartNode = { mainViewModel.clearStartNode() },
                             onOpenLiveBoard = { liveBoardViewModel.openLiveBoard() },
                             onClearTrain = { mainViewModel.clearSelectedTrain() },
+                            onMenuClick = onOpenDrawer
                         )
                     }
 
@@ -573,6 +576,7 @@ fun TrainDestinationCard(
     onClearStartNode: () -> Unit,
     onOpenLiveBoard: () -> Unit,
     onClearTrain: () -> Unit,
+    onMenuClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -592,11 +596,17 @@ fun TrainDestinationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "🚆  Where are you going?",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onMenuClick, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Menu")
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "Where are you going?",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 TextButton(onClick = onSwitchToAdvancedMode) {
                     Text(
                         "Advanced",
@@ -1119,7 +1129,8 @@ fun AdvancedSearchCard(
     onSwitchToSimpleMode: () -> Unit,
     onClearStartNode: () -> Unit,
     onClearEndNode: () -> Unit,
-    mainViewModel: MainViewModel // Pass the viewModel to trigger the focus state
+    mainViewModel: MainViewModel, // Pass the viewModel to trigger the focus state
+    onMenuClick: () -> Unit = {}
 ) {
     Card(
         modifier = modifier.shadow(8.dp, RoundedCornerShape(16.dp)),
@@ -1138,7 +1149,13 @@ fun AdvancedSearchCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Manual node selection", style = MaterialTheme.typography.titleSmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onMenuClick, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Menu")
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text("Manual node selection", style = MaterialTheme.typography.titleSmall)
+                }
                 TextButton(onClick = onSwitchToSimpleMode) {
                     Text("← Back", style = MaterialTheme.typography.labelSmall)
                 }

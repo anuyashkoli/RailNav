@@ -10,9 +10,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.app.railnav.core.data.remote.models.PnrResponse
+
 data class PnrUiState(
     val isLoading: Boolean = false,
-    val result: String? = null,
+    val result: PnrResponse? = null,
     val error: String? = null,
     val searchQuery: String = ""
 )
@@ -42,11 +44,17 @@ class PnrViewModel @Inject constructor(
             try {
                 // Hitting the IRCTC API!
                 val response = api.getPnrStatus(pnr)
-                // For now, we just dump the raw JSON string to verify it works
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    result = response.toString()
-                )
+                if (response.success) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        result = response
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = response.error ?: "API returned error: No success"
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
