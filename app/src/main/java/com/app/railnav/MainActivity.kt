@@ -56,10 +56,13 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 
+import dagger.hilt.android.AndroidEntryPoint
+
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { RailNavTheme { PathfindingScreen() } }
+        setContent { RailNavTheme { AppNavGraph() } }
     }
 }
 

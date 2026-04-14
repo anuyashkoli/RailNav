@@ -1,8 +1,9 @@
 plugins {
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -89,4 +90,12 @@ dependencies {
 
     // OSMDroid Bonus Pack for Clustering
     implementation("com.github.MKergall:osmbonuspack:6.9.0")
+
+    // Navigation
+    implementation(libs.androidx.navigation.compose)
+
+    // Dagger-Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.android.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
 }

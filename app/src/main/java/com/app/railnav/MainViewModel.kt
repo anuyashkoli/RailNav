@@ -78,7 +78,13 @@ data class MainUiState(
     val showMiniLiveBoard: Boolean = true
 )
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    application: Application
+) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()

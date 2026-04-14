@@ -3,6 +3,9 @@ package com.app.railnav
 import android.app.Application
 import org.osmdroid.config.Configuration
 
+import dagger.hilt.android.HiltAndroidApp
+
+@HiltAndroidApp
 class MyApp : Application() {
     override fun onCreate() {
         super.onCreate()
