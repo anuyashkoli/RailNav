@@ -130,6 +130,7 @@ fun PathfindingScreen(
     RailNavTheme(darkTheme = isDarkTheme) {
         ModalNavigationDrawer(
             drawerState = drawerState,
+            gesturesEnabled = false,
             drawerContent = {
                 ModalDrawerSheet {
                     Spacer(Modifier.height(16.dp))
@@ -204,6 +205,16 @@ fun PathfindingScreen(
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Train, null) },
+                        label = { Text("Live Train Status") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            context.startActivity(Intent(context, LiveTrainActivity::class.java))
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
                 }
             }
         ) {
@@ -271,6 +282,7 @@ fun PathfindingScreen(
                             onClearStartNode = { mainViewModel.clearStartNode() },
                             onOpenLiveBoard = { mainViewModel.openLiveBoard() },
                             onClearTrain = { mainViewModel.clearSelectedTrain() },
+                            onOpenMenu = { scope.launch { drawerState.open() } },
                         )
                     }
 
@@ -515,18 +527,7 @@ fun PathfindingScreen(
                 }
             }
 
-            // ── Hamburger menu FAB (top-left) ──────────────────────────────
-            FloatingActionButton(
-                onClick = { scope.launch { drawerState.open() } },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 16.dp, top = 16.dp)
-                    .size(44.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
-            ) {
-                Icon(Icons.Default.Menu, "Open navigation menu", tint = MaterialTheme.colorScheme.onSurface)
-            }
+
 
         } // end Box
         } // end ModalNavigationDrawer
@@ -668,6 +669,7 @@ fun TrainDestinationCard(
     onClearStartNode: () -> Unit,
     onOpenLiveBoard: () -> Unit,
     onClearTrain: () -> Unit,
+    onOpenMenu: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -687,6 +689,18 @@ fun TrainDestinationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Hamburger menu icon
+                IconButton(
+                    onClick = onOpenMenu,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Menu,
+                        contentDescription = "Open menu",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 Text(
                     "🚆  Where are you going?",
                     style = MaterialTheme.typography.titleMedium,

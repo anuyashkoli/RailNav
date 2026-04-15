@@ -13,8 +13,7 @@ interface TrainApi {
         @Query("trainNumber") trainNumber: String
     ): TrainRouteResponse
 
-    // Add this new endpoint
-    @GET("pnrStatus") // Check RapidAPI to confirm the exact path string
+    @GET("pnrStatus")
     suspend fun getPnrStatus(
         @Header("x-rapidapi-key") apiKey: String,
         @Header("x-rapidapi-host") host: String = "irctc-api2.p.rapidapi.com",
@@ -29,4 +28,12 @@ interface TrainApi {
         @Query("hours") hours: String,
         @Query("destination") destination: String? = null
     ): LiveStationResponse
+
+    @GET("liveTrain")
+    suspend fun getLiveTrainStatus(
+        @Header("x-rapidapi-key") apiKey: String,
+        @Header("x-rapidapi-host") host: String = "irctc-api2.p.rapidapi.com",
+        @Query("trainNumber") trainNumber: String,
+        @Query("startDay") startDay: String
+    ): LiveTrainResponse
 }
