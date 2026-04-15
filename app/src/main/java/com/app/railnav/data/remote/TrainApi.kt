@@ -6,11 +6,27 @@ import retrofit2.http.Query
 
 interface TrainApi {
 
-    // UPDATE: Matches your snippet: /trainSchedule?trainNumber=...
     @GET("trainSchedule")
     suspend fun getTrainSchedule(
         @Header("x-rapidapi-key") apiKey: String,
         @Header("x-rapidapi-host") host: String = "irctc-api2.p.rapidapi.com",
         @Query("trainNumber") trainNumber: String
-    ): TrainRouteResponse // Ensure this DTO matches the new JSON structure!
+    ): TrainRouteResponse
+
+    // Add this new endpoint
+    @GET("pnrStatus") // Check RapidAPI to confirm the exact path string
+    suspend fun getPnrStatus(
+        @Header("x-rapidapi-key") apiKey: String,
+        @Header("x-rapidapi-host") host: String = "irctc-api2.p.rapidapi.com",
+        @Query("pnr") pnrNumber: String
+    ): PnrResponse
+
+    @GET("liveStation")
+    suspend fun getLiveStationBoard(
+        @Header("x-rapidapi-key") apiKey: String,
+        @Header("x-rapidapi-host") host: String = "irctc-api2.p.rapidapi.com",
+        @Query("source") source: String,
+        @Query("hours") hours: String,
+        @Query("destination") destination: String? = null
+    ): LiveStationResponse
 }

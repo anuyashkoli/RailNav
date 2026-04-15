@@ -77,6 +77,7 @@ fun PathfindingScreen(
     val instructionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val trainSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val scope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
 
     var showInstructions by remember { mutableStateOf(false) }
     var isDarkTheme by remember { mutableStateOf(false) }
@@ -127,6 +128,85 @@ fun PathfindingScreen(
     }
 
     RailNavTheme(darkTheme = isDarkTheme) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Spacer(Modifier.height(16.dp))
+                    // Header
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Train, null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("RailNav", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge)
+                            Text("Thane Station Navigator", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    // Station navigation
+                    Text(
+                        "MAPS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Map, null) },
+                        label = { Text("Platform Navigator") },
+                        selected = true,
+                        onClick = { scope.launch { drawerState.close() } },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    // IRCTC section
+                    Text(
+                        "IRCTC SERVICES",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.ConfirmationNumber, null) },
+                        label = { Text("PNR Status") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            context.startActivity(Intent(context, PnrStatusActivity::class.java))
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Schedule, null) },
+                        label = { Text("Train Schedule") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            context.startActivity(Intent(context, TrainScheduleActivity::class.java))
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.TrackChanges, null) },
+                        label = { Text("Live Station Board") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            context.startActivity(Intent(context, LiveStationActivity::class.java))
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                }
+            }
+        ) {
         Box(modifier = modifier.fillMaxSize()) {
 
             // ── Map ────────────────────────────────────────────────────────
@@ -435,8 +515,22 @@ fun PathfindingScreen(
                 }
             }
 
-        }
-    }
+            // ── Hamburger menu FAB (top-left) ──────────────────────────────
+            FloatingActionButton(
+                onClick = { scope.launch { drawerState.open() } },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 16.dp, top = 16.dp)
+                    .size(44.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+            ) {
+                Icon(Icons.Default.Menu, "Open navigation menu", tint = MaterialTheme.colorScheme.onSurface)
+            }
+
+        } // end Box
+        } // end ModalNavigationDrawer
+    } // end RailNavTheme
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

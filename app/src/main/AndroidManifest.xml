@@ -38,6 +38,21 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".PnrStatusActivity"
+            android:exported="false"
+            android:theme="@style/Theme.RailNav" />
+
+        <activity
+            android:name=".TrainScheduleActivity"
+            android:exported="false"
+            android:theme="@style/Theme.RailNav" />
+
+        <activity
+            android:name=".LiveStationActivity"
+            android:exported="false"
+            android:theme="@style/Theme.RailNav" />
+
     </application>
 
 </manifest>
